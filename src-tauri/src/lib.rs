@@ -78,6 +78,13 @@ fn close_all_windows(app: &AppHandle) {
     }
 }
 
+// Linux: Ctrl+Q in the page. There is no "Quit Marky?" question and no setting for it. Each
+// window still asks about its unsaved changes, and the next start reopens the tabs.
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    close_all_windows(&app)
+}
+
 #[tauri::command]
 fn open_file(path: String) -> Result<files::Opened, String> {
     files::open(Path::new(&path))
@@ -170,7 +177,7 @@ pub fn run() {
         })
         .manage(Watchers::default())
         .manage(PendingFiles(Mutex::new(initial)))
-        .invoke_handler(tauri::generate_handler![open_file, save_file, create_file, watch, unwatch, new_window, take_pending_files, bench_mark])
+        .invoke_handler(tauri::generate_handler![quit_app, open_file, save_file, create_file, watch, unwatch, new_window, take_pending_files, bench_mark])
         .build(tauri::generate_context!())
         .expect("error while building Marky")
         .run(|_app, _event| {

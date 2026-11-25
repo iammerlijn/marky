@@ -50,3 +50,8 @@ test('Caps Lock and Shift do not matter for the letter', () => {
 test('Ctrl+Alt+S is not a shortcut', () => {
   expect(shortcut(key('s', { ctrlKey: true, altKey: true }), false)).toBeNull()
 })
+
+test('Ctrl+Q quits on Linux, and the page does not handle Cmd+Q on macOS', () => {
+  expect(shortcut(key('q', { ctrlKey: true }), false)).toBe('quit')
+  expect(shortcut(key('q', { metaKey: true }), true)).toBeNull()
+})
