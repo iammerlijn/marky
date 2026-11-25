@@ -1,0 +1,303 @@
+# Marky: design document
+
+Status: draft, 2026-11-25
+
+## 1. Goal
+
+Marky is an open-source desktop markdown editor for macOS and Linux. The look is inspired by the Linear document editor: calm typography, real tables and no visible markdown syntax.
+
+Marky must:
+
+- Show markdown as a finished document (full WYSIWYG). You do not see the markdown syntax.
+- Show tables as real tables, not as pipes and dashes.
+- Keep your files clean. If you do not edit a part of a file, Marky must not change that part when it saves.
+- Start fast and use little memory.
+
+### Not in v1
+
+- Windows
+- Sync, cloud storage or accounts
+- Plugins from other people
+- Export to PDF or HTML
+- Collaboration or comments
+- A file browser or a vault (Marky opens files, not folders)
+
+## 2. Decisions
+
+| Topic | Decision | Reason |
+|---|---|---|
+| Name | Marky | |
+| Type | Desktop app, full WYSIWYG | |
+| Platforms | macOS and Linux | |
+| Shell | Tauri 2 | Small app (5–15 MB), one codebase, Rust backend |
+| Editor | Milkdown (ProseMirror + remark) | Did not lose content in the fidelity test (section 3) |
+| UI framework | Svelte 5 | Small bundle, fast startup. The UI outside the editor is small. |
+| Code highlighting | Shiki | Same quality as VS Code |
+| Diagrams | Mermaid, loaded only when a file contains a diagram | Mermaid is approximately 1–2 MB |
+| Collapsibles | Read `+++` and `<details>`, write `<details>` | GitHub and most viewers render `<details>` |
+| Front matter | Properties panel above the document. You can edit the fields. | |
+| Raw mode | A shortcut shows the markdown source | An escape hatch when the WYSIWYG view is wrong |
+| Tabs | One editor view, with one saved editor state for each tab | Less memory than one editor for each tab |
+| Saving | Keep the original text of each block that you did not edit | Clean git diffs (section 5) |
+| macOS package | `.dmg` | |
+| Linux package | Flatpak | The GNOME runtime gives the same recent WebKitGTK version to all users |
+
+## 3. Fidelity test (step 0, done)
+
+**Question:** which editor changes a file less when you open it and save it without edits?
+
+**Method:** 31 real `.md` files (10,096 lines) with tables, Mermaid, code blocks, `<details>` and nested lists. Each file was loaded in Tiptap 3.35 and Milkdown 7.23 and then saved without edits. The test counted the changed lines and the words that were lost.
+
+| | Tiptap | Milkdown (default) | Milkdown (tuned) |
+|---|---|---|---|
+| Changed lines | 2,300 | 4,015 | **549** |
+| Files with no change | 5 of 31 | 3 of 31 | **8 of 31** |
+| Lost words | **135** | 1 | 1 |
+
+**Tiptap deletes content:**
+
+- `<details>`/`<summary>` blocks
+- HTML comments (`<!-- ... -->`)
+- Code blocks inside list items
+- It also breaks HTML entities: `&mdash;` becomes `&amp;mdash;`
+
+**Milkdown changes only the style:**
+
+- Default: `-` bullets become `*`, and table columns get padding.
+- Tuned settings: `bullet: '-'`, `emphasis: '_'`, `strong: '*'`, `listItemIndent: 'one'`, and `tablePipeAlign: false` for GFM. With these settings, the changes fell by 86%.
+- What remains: table alignment (some files align their tables and some do not), and safe escapes (`~` becomes `\~`, a `#` at the start of a line becomes `\#`).
+- The 1 lost word: `&mdash;` became `—`. The text is the same.
+
+**Result:** Milkdown. The save design in section 5 removes the remaining changes.
+
+**Also found:** Milkdown does not know `+++`. It keeps `+++` blocks as plain paragraphs. A custom plugin is necessary (section 6.3).
+
+## 4. Architecture
+
+```text
+┌──────────────────────────── Marky window ────────────────────────────┐
+│  Webview (WKWebView on macOS, WebKitGTK on Linux)                    │
+│  ┌────────────┐  ┌───────────────────────────────────────────────┐   │
+│  │ Svelte UI  │  │ Milkdown editor                               │   │
+│  │ tab bar    │  │  plugins: tables, collapsible, mermaid,       │   │
+│  │ outline    │  │           front matter, code block, raw mode  │   │
+│  │ dialogs    │  │  save: block-preserving serializer            │   │
+│  └─────┬──────┘  └──────────────────────┬────────────────────────┘   │
+│        └──────────── Tauri IPC ─────────┘                            │
+├──────────────────────────────────────────────────────────────────────┤
+│  Rust backend                                                        │
+│  read/write files (atomic) · file watcher (notify) · CLI args ·      │
+│  "open with" / file association · recent files · window state        │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### 4.1 Rust backend
+
+The backend is small. It does only what the webview cannot do.
+
+| Command | Function |
+|---|---|
+| `open_file(path)` | Read the file. Return the text and the modification time. |
+| `save_file(path, text, expected_mtime)` | Write to a temporary file, then rename it (atomic write). If the file on disk changed after `expected_mtime`, stop and return a conflict. |
+| `watch(path)` / `unwatch(path)` | Send an event when the file changes on disk. Ignore the events that Marky's own saves cause. |
+| CLI and "open with" | `marky notes.md` and the file manager open the file in a new tab of the open window. |
+
+### 4.2 Frontend
+
+- The Svelte UI contains the tab bar, the outline sidebar, the dialogs and the settings.
+- There is one Milkdown editor view. Each tab keeps its own ProseMirror `EditorState`. When you change tabs, the app swaps the state into the view.
+- Each tab stores: the path, the original text, the block map (section 5), the dirty flag and the modification time on disk.
+
+## 5. Save design: block preservation
+
+**Problem:** after a round trip, the serializer writes some blocks in a different way, even when you did not edit them.
+
+**Solution:** write the original text again for each block that you did not edit.
+
+1. **Load:** parse the file with remark. Each top-level mdast node has a start and end position in the source. Store the source slice of each top-level block, and the whitespace between blocks.
+2. **Map:** give each top-level ProseMirror node a block ID that points to its source slice.
+3. **Track:** for each transaction, mark the top-level blocks that the transaction changes as dirty. Use the step maps of the transaction.
+4. **Save:**
+   - Clean block → write its original source slice.
+   - Dirty block or new block → serialize only this block with the tuned remark settings.
+   - Between two clean blocks, write the original whitespace. In other places, write `\n\n`.
+5. **No change:** if no block is dirty, do not write the file.
+
+A moved block stays clean, because its content did not change. The end of the file keeps its original final newline.
+
+**Tests:**
+
+- Fidelity corpus, load and save: 0 changed lines.
+- Edit one block: only the lines of that block change.
+- Delete, move and add a block: the lines of the other blocks do not change.
+
+## 6. Content features
+
+### 6.1 Tables
+
+- GFM tables show as real grids: a header row, thin borders, cell padding and horizontal scroll when the table is wider than the page.
+- Commands: add or remove a row or column, move a row or column, and set the column alignment.
+- `Tab` moves to the next cell. `Tab` in the last cell adds a row.
+- You can drag the column widths. Marky keeps the widths only in the editor, not in the file.
+
+### 6.2 Mermaid
+
+- A ```` ```mermaid ```` code block shows as a diagram.
+- Click the diagram to show the source next to it. The diagram updates while you type, with a 300 ms delay.
+- If the source has an error, show the error message below the last valid diagram.
+- Load Mermaid only when the first diagram is visible.
+- The diagram uses the same theme as the app (light or dark).
+
+### 6.3 Collapsibles
+
+- Read `<details><summary>Title</summary> … </details>`.
+- Read `+++ Title` … `+++` (Linear syntax).
+- Write `<details>` for new collapsibles and for edited collapsibles.
+- The body can contain all other blocks (lists, tables, code, nested collapsibles).
+- Marky remembers if a collapsible is open or closed for each tab. This is not written to the file.
+
+### 6.4 Code blocks
+
+- Shiki highlighting, a language label and a copy button.
+- Load Shiki languages only when a file needs them.
+- Inside a code block, typing works as in a plain text editor (`Tab` indents).
+
+### 6.5 Front matter
+
+- YAML front matter between `---` lines shows as a properties panel above the document.
+- Simple values (text, number, date, true/false, lists) show as fields that you can edit.
+- Complex YAML shows as raw YAML in the panel.
+- The front matter is a separate block for block preservation. If you do not edit it, Marky writes it again with no change.
+
+### 6.6 Raw mode
+
+- `Cmd/Ctrl+Shift+M` changes between the WYSIWYG view and the markdown source of the current tab.
+- The source view is a CodeMirror 6 editor with markdown highlighting.
+- When you go back to WYSIWYG, Marky parses the source again.
+
+### 6.7 Other GFM
+
+Headings, lists, task lists, block quotes, links, images (local and remote), strikethrough, inline code, horizontal rules and footnotes.
+
+### 6.8 Markdown shortcuts while you type
+
+Typing markdown syntax converts it immediately: `# ` makes a heading, `- ` makes a list, `- [ ] ` makes a task, ```` ``` ```` makes a code block, `> ` makes a quote and `---` makes a rule. A `/` menu inserts blocks: table, Mermaid, collapsible, code block and image.
+
+## 7. Tabs and files
+
+- Each tab shows one file. If the file has unsaved edits, the tab shows a dot.
+- If you open a file that is already open, Marky selects its tab.
+- When the file changes on disk:
+  - If the tab has no unsaved edits, reload it immediately and keep the scroll position.
+  - If the tab has unsaved edits, show a bar: "This file changed on disk" with two buttons, **Keep mine** and **Load from disk**.
+- When you close a tab or the window with unsaved edits, ask to save.
+- At startup, reopen the tabs of the last session.
+- Save: `Cmd/Ctrl+S`. There is no auto-save in v1.
+
+## 8. Look and feel
+
+The goal is the calm look of Linear documents: small, slightly gray body text, a large line height, headings that are only a little larger than the body text, a narrow centered column and almost no borders.
+
+All values are CSS variables in `src/styles/tokens.css`. The values below are starting values. Tune them with a visual check against reference documents.
+
+| Token | Light | Dark |
+|---|---|---|
+| `--bg` | `#ffffff` | `#17181b` |
+| `--text` | `#2a2b2f` | `#d6d7da` |
+| `--text-muted` | `#6b6f76` | `#8a8f98` |
+| `--border` | `#e6e7ea` | `#2b2d31` |
+| `--code-bg` | `#f4f5f7` | `#212226` |
+| `--accent` | `#5e6ad2` | `#7c85e0` |
+
+| Token | Value |
+|---|---|
+| `--font-text` | Inter, system-ui, sans-serif |
+| `--font-mono` | "JetBrains Mono", ui-monospace, monospace |
+| `--size-body` | 15px |
+| `--line-height` | 1.6 |
+| `--size-h1` / `h2` / `h3` | 24px / 19px / 16px, weight 600 |
+| `--column-width` | 720px (tables can be wider, with scroll) |
+| `--radius` | 6px |
+
+Rules:
+
+- Light and dark mode follow the system setting.
+- Do not use `backdrop-filter`, blur, large shadows or many animations. These are slow on WebKitGTK.
+- Bundle Inter in the app. Do not load fonts from the internet.
+
+## 9. Performance targets
+
+| Metric | Target |
+|---|---|
+| Cold start to visible document | < 500 ms |
+| Open a 5,000-line file | < 300 ms |
+| Typing delay | < 16 ms (1 frame) |
+| App download | < 15 MB |
+| Memory with 10 tabs open | < 200 MB |
+
+Measure these targets in CI on macOS and Linux for each release.
+
+## 10. Folder layout
+
+```text
+marky/
+├── docs/
+│   └── design.md
+├── src-tauri/                 Rust backend
+│   ├── src/
+│   │   ├── main.rs
+│   │   ├── files.rs           open, save (atomic), conflict check
+│   │   ├── watcher.rs         file watch with notify
+│   │   └── cli.rs             CLI args and "open with"
+│   ├── Cargo.toml
+│   └── tauri.conf.json
+├── src/                       Frontend
+│   ├── app/                   Svelte UI: tabs, outline, dialogs
+│   ├── editor/
+│   │   ├── setup.ts           Milkdown setup and tuned settings
+│   │   └── plugins/           collapsible, mermaid, frontmatter, codeblock, raw-mode
+│   ├── markdown/
+│   │   └── preserve.ts        block-preserving serializer (section 5)
+│   └── styles/
+│       ├── tokens.css
+│       └── document.css
+├── tests/
+│   ├── corpus/                markdown files for the fidelity tests
+│   ├── fidelity.test.ts
+│   └── e2e/
+└── packaging/
+    └── flatpak/
+```
+
+## 11. Plan
+
+```text
+0. Fidelity test: Tiptap vs Milkdown            -> done (section 3)
+1. Tauri shell: open, save, watch, CLI args     -> verify: opens and saves a file on macOS and Linux
+2. Milkdown + tuned settings + GFM + tables      -> verify: visual check against reference documents
+3. Block-preserving save                        -> verify: corpus round trip = 0 changed lines
+4. Tabs + dirty state + external-change bar     -> verify: tests for reload and conflict
+5. Collapsibles + Mermaid + code blocks          -> verify: round-trip tests, no changes in clean blocks
+6. Front matter panel + raw mode                 -> verify: round-trip tests
+7. Styling pass (light and dark)                 -> verify: visual check on macOS and Linux
+8. Packaging: .dmg and Flatpak                   -> verify: install on a clean machine, check the performance targets
+```
+
+Test on Linux from step 1. Do not wait until the end.
+
+## 12. Risks
+
+| Risk | Effect | Mitigation |
+|---|---|---|
+| WebKitGTK is slower and has more rendering bugs than WKWebView | Slow or broken UI on Linux | Flatpak, simple CSS, Linux CI from step 1 |
+| Blank or flickering window on some NVIDIA setups | Marky does not show content | Set `WEBKIT_DISABLE_DMABUF_RENDERER=1` at startup on Linux |
+| Milkdown has mostly one maintainer | Slow fixes, or the project stops | Use Milkdown through a thin layer. ProseMirror and remark are the real base. |
+| The block map does not follow complex edits correctly | A block is saved with old text | Many tests for edits that join, split or move blocks. A dirty block always uses the serializer. |
+| Mermaid is large | Slow start | Load it only when a diagram is visible |
+
+## 13. Open items
+
+- License (MIT is the usual choice for a tool like this).
+- Search and replace in v1, or later?
+- Images: paste an image from the clipboard and store it next to the file?
+- Spell check (the webview has a spell checker, but it differs between platforms).
