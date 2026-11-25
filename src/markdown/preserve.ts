@@ -140,7 +140,8 @@ export function save(md: Markdown, source: Source, doc: Node): { text: string; c
   })
   flushHidden(blocks.length)
 
-  let text = source.bom + gaps[0]
+  // Without blocks, gaps[0] is also the last gap: write it only once, at the end.
+  let text = source.bom + (blocks.length > 0 ? gaps[0] : '')
   items.forEach((item, k) => {
     if (k > 0) {
       const previous = items[k - 1]

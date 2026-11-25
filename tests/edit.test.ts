@@ -216,6 +216,19 @@ describe('line endings and BOM', () => {
   })
 })
 
+describe('a file with only whitespace', () => {
+  test('a save without edits writes the file once', async () => {
+    doc = await open(' \n\n')
+    expect(doc.save()).toEqual({ text: ' \n\n', changed: false })
+  })
+
+  test('typed text comes before the whitespace', async () => {
+    doc = await open(' \n\n')
+    doc.view.dispatch(doc.view.state.tr.insertText('Hello', 1))
+    expect(doc.save().text).toBe('Hello \n\n')
+  })
+})
+
 describe('blocks without an editor node', () => {
   const source = `See [the docs][docs].
 
