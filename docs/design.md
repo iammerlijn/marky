@@ -98,7 +98,7 @@ The backend is small. It does only what the webview cannot do.
 | Command | Function |
 |---|---|
 | `open_file(path)` | Read the file. Return the text and the version (a hash of the bytes that were read). |
-| `save_file(path, text, expected_version)` | Write to a temporary file, then rename it (atomic write). If the file on disk does not have `expected_version`, stop and return a conflict. |
+| `save_file(path, text, expected_version)` | Write to a temporary file, then rename it (atomic write). If the file on disk does not have `expected_version`, stop and return a conflict. The rename swaps the two files in one step (`renameat2` on Linux, `renamex_np` on macOS) and checks the file that came out, so a change by another app just before the rename is also a conflict. The new file gets the owner, the permissions and the extended attributes (ACLs, Finder tags) of the old file. A read-only file is not saved. |
 | `watch(path)` / `unwatch(path)` | Send an event when the file changes on disk. Ignore the events that Marky's own saves cause. For a document portal path (`/run/user/<uid>/doc/...`), use `notify::PollWatcher` (section 4.3). For other paths, use the inotify watcher. |
 | CLI and "open with" | `marky notes.md` and the file manager open the file in a new tab of the open window. |
 

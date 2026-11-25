@@ -2,8 +2,12 @@
 use serde::Serialize;
 use std::fs::{self, File};
 use std::hash::{DefaultHasher, Hasher};
+use std::ffi::CString;
 use std::io::{ErrorKind, Write};
-use std::path::Path;
+use std::os::fd::AsRawFd;
+use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize, PartialEq)]
 pub struct Opened {
@@ -51,43 +55,147 @@ pub fn save(path: &Path, text: &str, expected_version: &str) -> Result<String, S
     if version(&target).map_err(io)? != expected_version {
         return Err(SaveError::Conflict);
     }
-    let permissions = fs::metadata(&target).map_err(io)?.permissions();
-    write_atomic(&target, text, Some(permissions)).map_err(io)?;
-    version(&target).map_err(io)
+    let temp = write_temp(&target, text, true).map_err(io)?;
+    let replaced = replace_if_unchanged(&temp, &target, expected_version);
+    // After a swap, the temporary path has the old file, or Marky's text after a conflict.
+    let _ = fs::remove_file(&temp);
+    replaced?;
+    sync_folder(&target);
+    Ok(version_of(text.as_bytes()))
 }
 
 // Save As: write a new file, or replace a file that the user chose in the save dialog.
 pub fn create(path: &Path, text: &str) -> Result<String, String> {
     let target = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    let permissions = fs::metadata(&target).ok().map(|m| m.permissions());
-    write_atomic(&target, text, permissions).map_err(|e| e.to_string())?;
-    version(&target).map_err(|e| e.to_string())
+    let temp = write_temp(&target, text, target.exists()).map_err(|e| e.to_string())?;
+    if let Err(e) = fs::rename(&temp, &target) {
+        let _ = fs::remove_file(&temp);
+        return Err(e.to_string());
+    }
+    sync_folder(&target);
+    Ok(version_of(text.as_bytes()))
 }
 
 // Atomic write: write a temporary file next to the file, then rename it over the file.
-// A crash leaves the old file or the new file, never half of a file.
-fn write_atomic(target: &Path, text: &str, permissions: Option<fs::Permissions>) -> std::io::Result<()> {
+// A crash leaves the old file or the new file, never half of a file. With `replaces`, the
+// temporary file gets the owner, permissions and extended attributes of the file.
+fn write_temp(target: &Path, text: &str, replaces: bool) -> std::io::Result<PathBuf> {
     let dir = target.parent().expect("a file has a parent folder");
     let name = target.file_name().expect("a file has a name").to_string_lossy();
+    if replaces && !writable(target) {
+        return Err(std::io::Error::new(ErrorKind::PermissionDenied, "The file is read-only."));
+    }
     let temp = dir.join(format!(".{name}.marky-{}.tmp", std::process::id()));
     let written = (|| {
         let mut file = File::create_new(&temp)?;
         file.write_all(text.as_bytes())?;
-        file.sync_all()?;
-        if let Some(permissions) = permissions {
-            fs::set_permissions(&temp, permissions)?;
+        if replaces {
+            copy_metadata(target, &file)?;
         }
-        fs::rename(&temp, target)
+        file.sync_all()
     })();
-    if written.is_err() {
-        let _ = fs::remove_file(&temp);
-        return written;
+    match written {
+        Ok(()) => Ok(temp),
+        Err(e) => {
+            let _ = fs::remove_file(&temp);
+            Err(e)
+        }
     }
-    // Make the rename durable.
-    if let Ok(folder) = File::open(dir) {
+}
+
+// Another app can replace the file after the version check. Swap the two files in one step,
+// then check the file that came out: if it is not the expected version, swap back. A file
+// system that cannot swap gets a second check just before a usual rename.
+fn replace_if_unchanged(temp: &Path, target: &Path, expected_version: &str) -> Result<(), SaveError> {
+    let io = |e: std::io::Error| SaveError::Io(e.to_string());
+    match exchange(temp, target) {
+        Ok(()) => {
+            if version(temp).ok().as_deref() == Some(expected_version) {
+                return Ok(());
+            }
+            exchange(temp, target).map_err(io)?;
+            Err(SaveError::Conflict)
+        }
+        Err(e) if matches!(e.raw_os_error(), Some(libc::EINVAL | libc::ENOSYS | libc::ENOTSUP)) || e.kind() == ErrorKind::Unsupported => {
+            if version(target).map_err(io)? != expected_version {
+                return Err(SaveError::Conflict);
+            }
+            fs::rename(temp, target).map_err(io)
+        }
+        Err(e) => Err(io(e)),
+    }
+}
+
+fn c_path(path: &Path) -> std::io::Result<CString> {
+    CString::new(path.as_os_str().as_bytes()).map_err(|_| ErrorKind::InvalidInput.into())
+}
+
+fn check(result: libc::c_int) -> std::io::Result<()> {
+    if result == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+}
+
+#[cfg(target_os = "linux")]
+fn exchange(a: &Path, b: &Path) -> std::io::Result<()> {
+    let (a, b) = (c_path(a)?, c_path(b)?);
+    check(unsafe { libc::renameat2(libc::AT_FDCWD, a.as_ptr(), libc::AT_FDCWD, b.as_ptr(), libc::RENAME_EXCHANGE) })
+}
+
+#[cfg(target_os = "macos")]
+fn exchange(a: &Path, b: &Path) -> std::io::Result<()> {
+    let (a, b) = (c_path(a)?, c_path(b)?);
+    check(unsafe { libc::renamex_np(a.as_ptr(), b.as_ptr(), libc::RENAME_SWAP) })
+}
+
+// The write permission of the user. On Unix, a rename can replace a read-only file.
+fn writable(path: &Path) -> bool {
+    c_path(path).is_ok_and(|p| unsafe { libc::access(p.as_ptr(), libc::W_OK) } == 0)
+}
+
+// The owner, the permissions and the extended attributes (macOS Finder tags, Linux ACLs and
+// SELinux labels) of the old file. An attribute that the user cannot set is not copied.
+fn copy_metadata(from: &Path, to: &File) -> std::io::Result<()> {
+    let metadata = fs::metadata(from)?;
+    let own = to.metadata()?;
+    if (metadata.uid(), metadata.gid()) != (own.uid(), own.gid()) {
+        std::os::unix::fs::fchown(to, Some(metadata.uid()), Some(metadata.gid()))
+            .map_err(|_| std::io::Error::new(ErrorKind::PermissionDenied, "Marky cannot keep the owner of the file."))?;
+    }
+    to.set_permissions(metadata.permissions())?;
+    copy_attributes(from, to);
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn copy_attributes(from: &Path, to: &File) {
+    // The size first, then the bytes.
+    fn bytes(get: impl Fn(*mut libc::c_void, usize) -> isize) -> Option<Vec<u8>> {
+        let mut buffer = vec![0; usize::try_from(get(std::ptr::null_mut(), 0)).ok()?];
+        let size = usize::try_from(get(buffer.as_mut_ptr().cast(), buffer.len())).ok()?;
+        buffer.truncate(size);
+        Some(buffer)
+    }
+    let Ok(from) = c_path(from) else { return };
+    let Some(names) = bytes(|p, n| unsafe { libc::listxattr(from.as_ptr(), p.cast(), n) }) else { return };
+    for name in names.split(|&b| b == 0).filter(|n| !n.is_empty()) {
+        let Ok(name) = CString::new(name) else { continue };
+        if let Some(value) = bytes(|p, n| unsafe { libc::getxattr(from.as_ptr(), name.as_ptr(), p, n) }) {
+            unsafe { libc::fsetxattr(to.as_raw_fd(), name.as_ptr(), value.as_ptr().cast(), value.len(), 0) };
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn copy_attributes(from: &Path, to: &File) {
+    let Ok(from) = File::open(from) else { return };
+    let flags = libc::COPYFILE_ACL | libc::COPYFILE_XATTR;
+    unsafe { libc::fcopyfile(from.as_raw_fd(), to.as_raw_fd(), std::ptr::null_mut(), flags) };
+}
+
+// Make the rename durable.
+fn sync_folder(target: &Path) {
+    if let Ok(folder) = File::open(target.parent().expect("a file has a parent folder")) {
         let _ = folder.sync_all();
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -168,6 +276,58 @@ mod tests {
         fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
         save(&path, "new\n", &open(&path).unwrap().version).unwrap();
         assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o640);
+    }
+
+    #[test]
+    fn a_change_by_another_app_just_before_the_rename_is_a_conflict() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = file(&dir, "a.md", "theirs\n");
+        let temp = file(&dir, "temp", "mine\n");
+        let expected = version_of(b"old\n");
+        assert_eq!(replace_if_unchanged(&temp, &path, &expected), Err(SaveError::Conflict));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "theirs\n");
+    }
+
+    #[test]
+    fn save_refuses_a_read_only_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = file(&dir, "a.md", "old\n");
+        let opened = open(&path).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o444)).unwrap();
+        assert!(matches!(save(&path, "new\n", &opened.version), Err(SaveError::Io(m)) if m.contains("read-only")));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "old\n");
+    }
+
+    #[test]
+    fn save_keeps_the_extended_attributes() {
+        let dir = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        let path = file(&dir, "a.md", "old\n");
+        let (c, name) = (c_path(&path).unwrap(), CString::new("user.marky-test").unwrap());
+        assert_eq!(unsafe { set_attribute(&c, &name, b"value") }, 0, "the file system has no extended attributes");
+        save(&path, "new\n", &open(&path).unwrap().version).unwrap();
+        let mut value = [0u8; 16];
+        let size = unsafe { get_attribute(&c, &name, &mut value) };
+        assert_eq!(&value[..size.max(0) as usize], b"value");
+    }
+
+    #[cfg(target_os = "linux")]
+    unsafe fn set_attribute(path: &CString, name: &CString, value: &[u8]) -> i32 {
+        unsafe { libc::setxattr(path.as_ptr(), name.as_ptr(), value.as_ptr().cast(), value.len(), 0) }
+    }
+
+    #[cfg(target_os = "linux")]
+    unsafe fn get_attribute(path: &CString, name: &CString, value: &mut [u8]) -> isize {
+        unsafe { libc::getxattr(path.as_ptr(), name.as_ptr(), value.as_mut_ptr().cast(), value.len()) }
+    }
+
+    #[cfg(target_os = "macos")]
+    unsafe fn set_attribute(path: &CString, name: &CString, value: &[u8]) -> i32 {
+        unsafe { libc::setxattr(path.as_ptr(), name.as_ptr(), value.as_ptr().cast(), value.len(), 0, 0) }
+    }
+
+    #[cfg(target_os = "macos")]
+    unsafe fn get_attribute(path: &CString, name: &CString, value: &mut [u8]) -> isize {
+        unsafe { libc::getxattr(path.as_ptr(), name.as_ptr(), value.as_mut_ptr().cast(), value.len(), 0, 0) }
     }
 
     #[test]
