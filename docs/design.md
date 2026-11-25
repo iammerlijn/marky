@@ -227,6 +227,7 @@ Typing markdown syntax converts it immediately: `# ` makes a heading, `- ` makes
 - Shortcuts use `Cmd` on macOS and `Ctrl` on Linux, never both: `O` open, `S` save, `W` close tab, `T` new tab, `N` new window.
 - `Cmd/Ctrl+W` in a window with no tabs closes the window, through the normal close path (with the unsaved-changes check).
 - macOS: the setting "Warn Before Quitting" (app menu, default on) asks before `Cmd+Q` quits. Then each window closes through its normal close path, so each window asks about unsaved changes. The setting is in `settings.json` in the app config folder: the backend builds the menu at start, before the page loads.
+- Linux: `Ctrl+Q` quits through the same path, so each window asks about unsaved changes. It does not ask "Quit Marky?" first, and Linux has no settings menu. Reasons: GNOME apps quit on `Ctrl+Q` without a question, the next start reopens the tabs, and with no question there is no setting to show. Add a settings place when Marky has a setting that Linux needs.
 - A new tab is "Untitled". Its first save opens a Save As dialog. A new file ends with a newline.
 - Each window has its own tabs. Files from the command line and from "open with" open in the focused window. Only the first window restores the session.
 - A window with no tabs shows the welcome screen: the app icon, Open file, New file and the 8 recent files (in `localStorage`, shared by all windows). A recent file that does not open goes out of the list.
