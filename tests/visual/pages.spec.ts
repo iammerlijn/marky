@@ -48,6 +48,19 @@ for (const colorScheme of ['light', 'dark'] as const) {
       })
     }
 
+    // The tab bar and the banner stay at the top while the window scrolls.
+    for (const state of ['banner', 'raw']) {
+      test(`app: ${state}, scrolled`, async ({ page }) => {
+        await page.goto(`/dev/app.html?state=${state}`)
+        await page.waitForSelector('body[data-ready]')
+        await page.evaluate(() => document.fonts.ready)
+        await page.evaluate(() => window.scrollTo(0, 400))
+        expect(await page.evaluate(() => window.scrollY)).toBe(400)
+        expect((await page.locator('.tab-bar').boundingBox())?.y).toBe(0)
+        await expect(page).toHaveScreenshot(`app-${state}-scrolled-${colorScheme}.png`)
+      })
+    }
+
     test('slash menu', async ({ page }) => {
       await page.goto('/dev/preview.html')
       await ready(page)

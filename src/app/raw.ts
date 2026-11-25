@@ -32,6 +32,8 @@ export class RawEditor {
       markdown(),
       syntaxHighlighting(style),
       EditorView.lineWrapping,
+      // The tab bar and the banner stick at the top of the window: keep the cursor below them.
+      EditorView.scrollMargins.of(() => ({ top: document.getElementById('chrome')?.getBoundingClientRect().bottom ?? 0 })),
       keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) onChange(update.state.doc.toString())

@@ -28,6 +28,14 @@ const editorRoot = document.getElementById('editor')!
 const editor = await createEditor(editorRoot)
 const view = editor.ctx.get(editorViewCtx)
 void invoke('bench_mark', { label: 'editor' })
+// The tab bar and the banner stick at the top of the window. When the editor scrolls to the
+// cursor, keep the cursor below them.
+const chrome = document.getElementById('chrome')!
+const chromeBottom = () => chrome.getBoundingClientRect().bottom
+view.setProps({
+  scrollThreshold: { get top() { return chromeBottom() }, right: 0, bottom: 0, left: 0 },
+  scrollMargin: { get top() { return chromeBottom() + 8 }, right: 5, bottom: 5, left: 5 },
+})
 const markdownFiles = [{ name: 'Markdown', extensions: ['md', 'markdown', 'mdx', 'txt'] }]
 const tabs = new Tabs(
   view,

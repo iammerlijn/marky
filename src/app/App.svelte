@@ -73,9 +73,6 @@
 
 <style>
   .tab-bar {
-    position: sticky;
-    top: 0;
-    z-index: 6;
     display: flex;
     overflow-x: auto;
     background: var(--code-bg);
@@ -137,9 +134,6 @@
   }
 
   .banner {
-    position: sticky;
-    top: 35px;
-    z-index: 5;
     display: flex;
     align-items: center;
     gap: 8px;
