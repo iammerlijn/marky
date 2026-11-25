@@ -61,4 +61,24 @@ describe('Marky', () => {
     await browser.keys([Key.Ctrl, Key.Shift, 'M'])
     await editor().waitForDisplayed()
   })
+
+  // Last test: it closes the app.
+  it('closes the window with Ctrl+W when no tab is open', async () => {
+    await browser.keys([Key.Ctrl, 'w'])
+    await browser.waitUntil(async () => (await $$('.tab')).length === 0, { timeoutMsg: 'the last tab did not close' })
+    // The window closes during this key action, so the driver can lose its session before the
+    // action ends. The next step checks that the window is gone.
+    await browser.keys([Key.Ctrl, 'w']).catch(() => {})
+    // When the window is closed, each command fails.
+    await browser.waitUntil(
+      async () => {
+        try {
+          return (await browser.getWindowHandles()).length === 0
+        } catch {
+          return true
+        }
+      },
+      { timeoutMsg: 'the window did not close' },
+    )
+  })
 })

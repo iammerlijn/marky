@@ -152,7 +152,12 @@ function toggleRaw() {
 function perform(action: Action) {
   if (action === 'open') void chooseFile()
   else if (action === 'save') void run(() => tabs.save())
-  else if (action === 'close-tab' && tabs.active) void run(() => tabs.close(tabs.active!.id, ask))
+  else if (action === 'close-tab') {
+    // With no tabs, Cmd/Ctrl+W closes the window: the same path as the close button of the
+    // window, so that the unsaved-changes check runs (onCloseRequested below).
+    if (tabs.active) void run(() => tabs.close(tabs.active!.id, ask))
+    else void run(() => appWindow.close())
+  }
   else if (action === 'new-tab') {
     tabs.newTab()
     view.focus()
