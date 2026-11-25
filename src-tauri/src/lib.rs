@@ -1,5 +1,6 @@
 mod cli;
 mod files;
+mod settings;
 // Used only on macOS.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod menu;
@@ -9,7 +10,9 @@ use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use watcher::Watchers;
 
 // Files to open: from the command line, from a second `marky` command and from "Open With".
@@ -32,6 +35,46 @@ fn add_pending(app: &AppHandle, paths: Vec<String>) {
     if let Some(window) = target_window(app) {
         let _ = window.emit_to(window.label(), "open-files", ());
         let _ = window.set_focus();
+    }
+}
+
+// The settings and the path of their file (settings.rs).
+struct AppSettings {
+    path: PathBuf,
+    settings: Mutex<settings::Settings>,
+}
+
+// The menu item changes its check mark itself. Save the new value.
+fn toggle_warn_before_quit(app: &AppHandle) {
+    let state = app.state::<AppSettings>();
+    let mut settings = state.settings.lock().unwrap();
+    settings.warn_before_quit = !settings.warn_before_quit;
+    let _ = settings::save(&state.path, &settings);
+}
+
+// Cmd+Q: ask first when the setting is on. Then close each window through its normal close
+// path, so that each window asks about its unsaved changes. The app ends when the last window
+// closes. Cancel in a window keeps the app open.
+fn quit(app: &AppHandle) {
+    let warn = app.state::<AppSettings>().settings.lock().unwrap().warn_before_quit;
+    if !warn {
+        return close_all_windows(app);
+    }
+    let handle = app.clone();
+    app.dialog()
+        .message("Quit Marky?")
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom("Quit".into(), "Cancel".into()))
+        .show(move |confirmed| {
+            if confirmed {
+                close_all_windows(&handle);
+            }
+        });
+}
+
+fn close_all_windows(app: &AppHandle) {
+    for window in app.webview_windows().values() {
+        let _ = window.close();
     }
 }
 
@@ -100,15 +143,22 @@ pub fn run() {
             add_pending(app, cli::files(args, Path::new(&cwd)));
         }))
         .plugin(tauri_plugin_dialog::init())
-        .setup(|_app| {
+        .setup(|app| {
+            let path = app.path().app_config_dir()?.join("settings.json");
+            let loaded = settings::load(&path);
             #[cfg(target_os = "macos")]
-            _app.set_menu(menu::build(_app.handle())?)?;
+            app.set_menu(menu::build(app.handle(), loaded.warn_before_quit)?)?;
+            app.manage(AppSettings { path, settings: Mutex::new(loaded) });
             Ok(())
         })
-        // A menu item sends its action to the focused window.
-        .on_menu_event(|app, event| {
-            if let Some(window) = target_window(app) {
-                let _ = window.emit_to(window.label(), "menu", event.id().0.clone());
+        // The quit items are for the app. Each other menu item sends its action to the focused window.
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            menu::QUIT => quit(app),
+            menu::WARN_BEFORE_QUIT => toggle_warn_before_quit(app),
+            action => {
+                if let Some(window) = target_window(app) {
+                    let _ = window.emit_to(window.label(), "menu", action.to_string());
+                }
             }
         })
         .manage(Watchers::default())
