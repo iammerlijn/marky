@@ -1,0 +1,44 @@
+# Flatpak of Marky (design document, sections 2 and 4.3). Build: packaging/flatpak/build.sh
+# No filesystem permission: files come through the document portal (file dialog and
+# "open with"), and the backend polls portal paths for changes.
+id: nl.marky.Marky
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: marky
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+modules:
+  - name: marky
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      # A local build downloads the crates. Flathub needs vendored crates and an offline build.
+      build-args:
+        - --share=network
+      env:
+        CARGO_HOME: /run/build/marky/cargo
+    build-commands:
+      # The frontend (dist/) is built before, on the host: it is the same on each platform.
+      - cargo build --release --features tauri/custom-protocol --manifest-path src-tauri/Cargo.toml
+      - install -Dm755 src-tauri/target/release/marky /app/bin/marky
+      - install -Dm644 packaging/flatpak/nl.marky.Marky.desktop /app/share/applications/nl.marky.Marky.desktop
+      - install -Dm644 packaging/flatpak/nl.marky.Marky.metainfo.xml /app/share/metainfo/nl.marky.Marky.metainfo.xml
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/nl.marky.Marky.png
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - node_modules
+          - src-tauri/target
+          - .git
+          - spikes
+          - tests
+          - test-results
+          - .flatpak-builder
+          - packaging/flatpak/build

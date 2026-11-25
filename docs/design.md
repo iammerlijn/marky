@@ -99,14 +99,35 @@ The backend is small. It does only what the webview cannot do.
 |---|---|
 | `open_file(path)` | Read the file. Return the text and the modification time. |
 | `save_file(path, text, expected_mtime)` | Write to a temporary file, then rename it (atomic write). If the file on disk changed after `expected_mtime`, stop and return a conflict. |
-| `watch(path)` / `unwatch(path)` | Send an event when the file changes on disk. Ignore the events that Marky's own saves cause. |
+| `watch(path)` / `unwatch(path)` | Send an event when the file changes on disk. Ignore the events that Marky's own saves cause. For a document portal path (`/run/user/<uid>/doc/...`), use `notify::PollWatcher` (section 4.3). For other paths, use the inotify watcher. |
 | CLI and "open with" | `marky notes.md` and the file manager open the file in a new tab of the open window. |
 
 ### 4.2 Frontend
 
-- The Svelte UI contains the tab bar, the outline sidebar, the dialogs and the settings.
+- The Svelte UI contains the tab bar, the dialogs and the settings.
+- The outline is a ProseMirror plugin (`src/editor/plugins/outline.ts`). A thin rail at the left edge shows one dash for each heading (`h1` to `h6`, also in collapsibles). Deeper headings have shorter dashes. The dash of the current section is darker and longer, and it updates while you scroll. The rail has a fixed position, so it takes no width from the document column.
+- Hover over the rail to open a panel over the document, with one line for each heading. A click scrolls to the heading and puts the cursor there. The panel closes a short time after the mouse leaves it. With the keyboard: `Tab` to the rail, `Enter` opens the panel, arrow keys move, `Enter` goes to the heading, `Escape` closes. There is no shortcut.
+- The list comes from the editor state of the active tab: again after a tab change, and a short time after an edit. There is no rail when the document has no headings, and in raw mode.
 - There is one Milkdown editor view. Each tab keeps its own ProseMirror `EditorState`. When you change tabs, the app swaps the state into the view.
 - Each tab stores: the path, the original text, the block map (section 5), the dirty flag and the modification time on disk.
+
+### 4.3 Flatpak file access (step 2, done)
+
+**Question:** in the Flatpak sandbox, can the backend open, save and watch a file?
+
+**Method:** a small Rust program (`spikes/flatpak-access/`) with the same `std::fs` and `notify` calls as the backend, in a Flatpak with GNOME runtime 51. Files in the home folder and in `/tmp`. Another app changed each file in place and with an atomic replace.
+
+| | Document portal (no permission) | `--filesystem=home` | `--filesystem=host` |
+|---|---|---|---|
+| Read, atomic save, in-place save, keep the file mode | Yes, in all locations | Home folder only | Home folder only. `/tmp` is not available. |
+| inotify events for changes from other apps | **No** | Yes | Yes |
+| `PollWatcher` events (interval 500 ms) | Yes | | |
+| Same path after a restart ("reopen last session") | Yes | Yes | Yes |
+| Real path of the file | `user.document-portal.host-path` attribute | The path | The path |
+
+**Result:** use the document portal and ask for no filesystem permission. Files come from the file dialog and from "open with" (`Exec=... @@u %U @@` in the desktop file). Use `PollWatcher` for portal paths. Show the real path from the `user.document-portal.host-path` attribute in the tab and in recent files. The backend design does not change.
+
+**Not tested yet:** the file dialog portal (the check used `--file-forwarding`, which uses the same document store) and "Save As" for a new file.
 
 ## 5. Save design: block preservation
 
@@ -115,13 +136,15 @@ The backend is small. It does only what the webview cannot do.
 **Solution:** write the original text again for each block that you did not edit.
 
 1. **Load:** parse the file with remark. Each top-level mdast node has a start and end position in the source. Store the source slice of each top-level block, and the whitespace between blocks.
-2. **Map:** give each top-level ProseMirror node a block ID that points to its source slice.
-3. **Track:** for each transaction, mark the top-level blocks that the transaction changes as dirty. Use the step maps of the transaction.
+2. **Map:** store the original top-level ProseMirror node of each block. Milkdown makes one top-level node for each top-level mdast node. A link definition (`[ref]: url`) has no node: Marky keeps its text at its original place.
+3. **Compare:** at save, a top-level node that is equal to an original node is clean (the heading `id` is ignored, because the editor makes it from the text). This replaces the tracking of step maps: it is simpler, and an edit that you undo makes the block clean again. A longest-common-subsequence match finds the clean blocks in order. An equal node at a different place is a moved block.
 4. **Save:**
    - Clean block → write its original source slice.
    - Dirty block or new block → serialize only this block with the tuned remark settings.
-   - Between two clean blocks, write the original whitespace. In other places, write `\n\n`.
-5. **No change:** if no block is dirty, do not write the file.
+   - Edited table at its original place → keep the original line of each row that did not change, and the original delimiter row if the columns and their alignment did not change. Thus an edit in one cell changes one line.
+   - Between two blocks that follow each other in the original file, write the original whitespace. This includes an edited block at its original place. In other places, write `\n\n`.
+   - Keep the BOM and the line endings (CRLF or LF) of the file. New text uses the same line endings.
+5. **No change:** if the result is the same as the original text, do not write the file.
 
 A moved block stays clean, because its content did not change. The end of the file keeps its original final newline.
 
@@ -160,6 +183,7 @@ A moved block stays clean, because its content did not change. The end of the fi
 
 - Shiki highlighting, a language label and a copy button.
 - Load Shiki languages only when a file needs them.
+- Marky includes about 60 common languages (`src/editor/plugins/languages.ts`), not all ~240 of Shiki: they added about 15 MB to the app. Other languages show as plain code.
 - Inside a code block, typing works as in a plain text editor (`Tab` indents).
 
 ### 6.5 Front matter
@@ -174,10 +198,17 @@ A moved block stays clean, because its content did not change. The end of the fi
 - `Cmd/Ctrl+Shift+M` changes between the WYSIWYG view and the markdown source of the current tab.
 - The source view is a CodeMirror 6 editor with markdown highlighting.
 - When you go back to WYSIWYG, Marky parses the source again.
+- If you did not edit the source, Marky keeps the editor state, with its undo history.
+- If you edited the source, a save writes your source text exactly. Later edits in the editor change only their own blocks.
+- If the block map cannot read a file (the editor makes a different number of nodes than the markdown has blocks), the file opens in raw mode with a message. You can go back to the editor when the source maps again.
 
 ### 6.7 Other GFM
 
 Headings, lists, task lists, block quotes, links, images (local and remote), strikethrough, inline code, horizontal rules and footnotes.
+
+### 6.7.1 Box-drawing text
+
+Text drawn with box-drawing characters (`┌─┬─┐ │ ├─┼─┤`), for example a table copied from a terminal, is a paragraph in markdown. Marky shows it as in the source: monospace, no wrap, horizontal scroll when it is too wide. It does not convert it to a table, and a save does not change it.
 
 ### 6.8 Markdown shortcuts while you type
 
@@ -193,6 +224,12 @@ Typing markdown syntax converts it immediately: `# ` makes a heading, `- ` makes
 - When you close a tab or the window with unsaved edits, ask to save.
 - At startup, reopen the tabs of the last session.
 - Save: `Cmd/Ctrl+S`. There is no auto-save in v1.
+- Shortcuts use `Cmd` on macOS and `Ctrl` on Linux, never both: `O` open, `S` save, `W` close tab, `T` new tab, `N` new window.
+- `Cmd/Ctrl+W` in a window with no tabs closes the window, through the normal close path (with the unsaved-changes check).
+- macOS: the setting "Warn Before Quitting" (app menu, default on) asks before `Cmd+Q` quits. Then each window closes through its normal close path, so each window asks about unsaved changes. The setting is in `settings.json` in the app config folder: the backend builds the menu at start, before the page loads.
+- A new tab is "Untitled". Its first save opens a Save As dialog. A new file ends with a newline.
+- Each window has its own tabs. Files from the command line and from "open with" open in the focused window. Only the first window restores the session.
+- macOS has a menu bar with the same File actions, and Cut, Copy, Paste and Select All. The default Tauri menu is not used, because its `Cmd+W` closes the window.
 
 ## 8. Look and feel
 
@@ -230,12 +267,38 @@ Rules:
 | Metric | Target |
 |---|---|
 | Cold start to visible document | < 500 ms |
-| Open a 5,000-line file | < 300 ms |
+| Open a 1,000-line file | < 300 ms |
+| Open a 5,000-line file | < 1 s (was < 300 ms, see [issue 3](https://github.com/iammerlijn/marky/issues/3)) |
 | Typing delay | < 16 ms (1 frame) |
 | App download | < 15 MB |
 | Memory with 10 tabs open | < 200 MB |
 
 Measure these targets in CI on macOS and Linux for each release.
+
+**Measured (2026-11-25, Linux, production build in WebKit, `dev/bench.mjs`):**
+
+| Metric | Result | Target met? |
+|---|---|---|
+| Open a 1,000-line file | 237 ms | Yes |
+| Open a 2,000-line file | 327 ms | No |
+| Open a 5,000-line file | ~970 ms (parse and block map ~355 ms, the rest is the DOM) | Yes (< 1 s) |
+| Typing delay in a 5,000-line file | median 16 ms, p95 17 ms (one frame) | Yes |
+| Save after an edit in a 5,000-line file | 4 ms | |
+| Flatpak download | 5.8 MB | Yes |
+
+**Measured in the release app (2026-11-25, Linux, `dev/measure-app.sh`):**
+
+| Metric | Result | Target met? |
+|---|---|---|
+| Cold start: process start to the page script | ~365 ms | |
+| Cold start: process start to the open document, before the paint | ~550 ms | No (< 500 ms) |
+| Cold start to the painted document | ~1,550 ms, but the screen was locked: ~1 s is the wait for two frames | Not known |
+| Memory with 1 tab | 303 MB PSS | |
+| Memory with 10 tabs | 317 MB PSS (app 102, WebKit web process 177, network process 36) | No (< 200 MB) |
+
+Each tab costs only about 1.5 MB. The memory is mostly the base cost of WebKitGTK.
+`content-visibility: auto` on the blocks gave 740 ms for 5,000 lines, but it changes the layout
+(margins do not collapse, the collapsible arrow is clipped), so it is not used.
 
 ## 10. Folder layout
 

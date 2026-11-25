@@ -1,0 +1,88 @@
+/* The outline: a rail of dashes at the left edge, and on hover a list of the headings over the
+   document. Fixed position, so it takes no width from the column. */
+.outline {
+  position: fixed;
+  top: 88px;
+  left: 0;
+  z-index: 5;
+}
+.outline-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-height: calc(100vh - 120px);
+  overflow: hidden;
+  padding: 8px 12px 8px 16px;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.outline-dash {
+  flex-shrink: 0;
+  width: calc(16px - var(--depth) * 2px);
+  height: 2px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--text-muted) 40%, transparent);
+}
+.outline-dash.is-current {
+  width: calc(20px - var(--depth) * 2px);
+  background: var(--text);
+}
+.outline-panel {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 8px;
+  width: 260px;
+  max-height: calc(100vh - 104px);
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  font-size: 13px;
+}
+.outline.is-open .outline-panel {
+  display: block;
+}
+.outline-item {
+  display: block;
+  width: 100%;
+  padding: 4px 8px 4px calc(8px + var(--depth) * 12px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font: inherit;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.outline-item[data-depth='0'] {
+  color: var(--text);
+}
+.outline-item[aria-current] {
+  color: var(--accent);
+}
+.outline-item:hover,
+.outline-item:focus-visible {
+  background: var(--code-bg);
+  outline: none;
+}
+.outline-rail:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.outline-item code {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: 12px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--code-bg);
+}

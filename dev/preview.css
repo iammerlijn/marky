@@ -1,0 +1,41 @@
+#layout {
+  display: flex;
+  min-height: 100vh;
+}
+#editor {
+  flex: 1;
+  min-width: 0;
+}
+#diff {
+  width: 46%;
+  max-height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow: auto;
+  border-left: 1px solid var(--border);
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: 11.5px;
+  line-height: 1.55;
+  padding: 16px 0;
+  white-space: pre;
+}
+#diff .diff-title {
+  font-family: var(--font-text);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 16px 12px;
+}
+#diff > div:not(.diff-title) {
+  padding: 0 16px;
+}
+#diff .same {
+  color: var(--text-muted);
+}
+#diff .added {
+  background: rgba(46, 160, 67, 0.18);
+}
+#diff .removed {
+  background: rgba(248, 81, 73, 0.18);
+}

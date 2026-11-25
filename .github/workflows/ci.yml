@@ -1,0 +1,84 @@
+# Test plan, section 2: tests at each commit, on Linux and macOS.
+name: CI
+
+# Push only for main: a pull request runs the jobs for its branch, so they do not run twice.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - name: Install the system libraries of Tauri
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: cargo test
+        working-directory: src-tauri
+
+  # The Rust crate has macOS-only code (the menu bar, "Open With"). Only cargo test: macOS
+  # runner minutes cost 10 times more on a private repository.
+  rust-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - run: cargo test
+        working-directory: src-tauri
+
+  visual:
+    runs-on: ubuntu-latest
+    # The same image as `npm run test:visual`, so the approved screenshots match.
+    container: mcr.microsoft.com/playwright:v1.65.1-noble
+    steps:
+      - uses: actions/checkout@v7
+      - run: npm ci
+      - run: npx playwright test
+        env:
+          HOME: /root
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-differences
+          path: test-results
+
+  e2e:
+    # App tests in a real window (tests/e2e). tauri-driver needs WebKitWebDriver: Linux only.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - name: Install the system libraries, WebKitWebDriver and a virtual display
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf webkitgtk-webdriver xvfb dbus
+      - run: cargo install tauri-driver --locked
+      - run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - run: npm ci
+      - run: npx tauri build --debug --no-bundle
+      # The single-instance plugin needs a D-Bus session.
+      - run: dbus-run-session -- xvfb-run --auto-servernum npm run test:e2e
+
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            bundles: deb
+          - os: macos-latest
+            bundles: dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+      - run: npx tauri build --bundles ${{ matrix.bundles }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: marky-${{ matrix.bundles }}
+          path: src-tauri/target/release/bundle/${{ matrix.bundles }}/*

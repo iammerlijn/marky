@@ -1,0 +1,26 @@
+# Throwaway Flatpak for the file-access check. No filesystem permission:
+# run.sh adds permissions per case, as `flatpak run --filesystem=...`.
+id: nl.marky.FlatpakAccess
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: flatpak-access
+modules:
+  - name: flatpak-access
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      build-args:
+        - --share=network
+    build-commands:
+      - cargo build --release
+      - install -Dm755 target/release/flatpak-access /app/bin/flatpak-access
+    sources:
+      - type: dir
+        path: .
+        skip:
+          - target
+          - build
+          - .flatpak-builder

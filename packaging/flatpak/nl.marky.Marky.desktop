@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Marky
+Comment=Edit markdown files
+Exec=marky %U
+Icon=nl.marky.Marky
+Terminal=false
+Categories=Office;TextEditor;
+MimeType=text/markdown;text/x-markdown;
+StartupWMClass=marky
