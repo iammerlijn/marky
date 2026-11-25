@@ -57,6 +57,19 @@ describe('code blocks', () => {
     expect(styled()).toBe(after)
   })
 
+  test('a short name of a language (py) is highlighted', async () => {
+    doc = await open('```py\ndef f():\n    return 1\n```\n')
+    await vi.waitFor(() => expect(doc.view.dom.querySelectorAll('.code-block code span[style]').length).toBeGreaterThan(2), {
+      timeout: 5000,
+    })
+  })
+
+  test('a language that Marky does not include shows plain code', async () => {
+    doc = await open('```cobol\nDISPLAY "HI".\n```\n')
+    await new Promise((r) => setTimeout(r, 200))
+    expect(doc.view.dom.querySelectorAll('.code-block code span[style]')).toHaveLength(0)
+  })
+
   test('an unknown language shows plain code and no error', async () => {
     doc = await open('```notalanguage\nsome code\n```\n')
     await new Promise((r) => setTimeout(r, 200))

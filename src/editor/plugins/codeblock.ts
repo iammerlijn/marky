@@ -8,6 +8,7 @@ import { Plugin, PluginKey, TextSelection, type Transaction } from '@milkdown/ki
 import { Decoration, DecorationSet, type EditorView, type NodeView } from '@milkdown/kit/prose/view'
 import { $prose, $view } from '@milkdown/kit/utils'
 import type { HighlighterCore } from 'shiki/core'
+import { languageModule } from './languages'
 
 // Replaced in tests, to count the loads.
 export const loaders = {
@@ -22,10 +23,7 @@ export const loaders = {
       engine: createJavaScriptRegexEngine(),
     })
   },
-  language: async (name: string) => {
-    const { bundledLanguages } = await import('shiki/langs')
-    return name in bundledLanguages ? bundledLanguages[name as keyof typeof bundledLanguages]() : null
-  },
+  language: async (name: string) => languageModule(name),
   mermaid: async () => (await import('mermaid')).default,
 }
 
