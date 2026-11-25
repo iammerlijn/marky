@@ -256,6 +256,21 @@ describe('changes on disk', () => {
     expect(backend.files.get('/a.md')!.text).toBe('# A\n\nTheirs.\n')
   })
 
+  test('an edit while the reload reads the file stays, and the tab shows the bar', async () => {
+    await tabs.open('/a.md')
+    const version = backend.write('/a.md', '# A\n\nTheirs.\n')
+    const open = backend.open.bind(backend)
+    let finish = () => {}
+    backend.open = (path) => new Promise((resolve) => (finish = () => resolve(open(path))))
+    const changed = tabs.changed('/a.md', version)
+    type('Mine ')
+    finish()
+    await changed
+    expect(docText()).toContain('Mine')
+    expect(tab('/a.md').banner).toBe('changed')
+    expect(backend.files.get('/a.md')!.text).toBe('# A\n\nTheirs.\n')
+  })
+
   test('Keep mine: the next save writes my edits', async () => {
     await tabs.open('/a.md')
     type('Mine ')

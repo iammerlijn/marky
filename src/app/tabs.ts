@@ -227,16 +227,23 @@ export class Tabs {
     if (version === null) {
       tab.banner = 'deleted'
     } else if (!this.output(tab).changed) {
-      await this.reload(tab)
+      await this.reload(tab, true)
     } else {
       tab.banner = 'changed'
     }
     this.emit()
   }
 
-  private async reload(tab: Tab) {
+  // With keepEdits, an edit while the file is read stays: then the tab shows the bar.
+  private async reload(tab: Tab, keepEdits = false) {
     if (tab.path === null) return
+    const [doc, raw] = [this.stateOf(tab).doc, tab.rawText]
     const { source, saved, version, state, rawOnly } = await this.read(tab.path)
+    if (keepEdits && (this.stateOf(tab).doc !== doc || tab.rawText !== raw)) {
+      tab.banner = 'changed'
+      this.emit()
+      return
+    }
     Object.assign(tab, { source, saved, version, rawOnly, dirty: false, banner: rawOnly ? 'raw-only' : null })
     if (tab.rawText !== null || rawOnly) tab.rawText = tab.rawStart = saved
     if (tab === this.active) {
