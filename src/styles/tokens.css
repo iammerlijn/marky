@@ -1,0 +1,30 @@
+/* Design document, section 8. Starting values: tune them with a visual check. */
+:root {
+  --bg: #ffffff;
+  --text: #2a2b2f;
+  --text-muted: #6b6f76;
+  --border: #e6e7ea;
+  --code-bg: #f4f5f7;
+  --accent: #5e6ad2;
+
+  --font-text: Inter, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --size-body: 15px;
+  --line-height: 1.6;
+  --size-h1: 24px;
+  --size-h2: 19px;
+  --size-h3: 16px;
+  --column-width: 720px;
+  --radius: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181b;
+    --text: #d6d7da;
+    --text-muted: #8a8f98;
+    --border: #2b2d31;
+    --code-bg: #212226;
+    --accent: #7c85e0;
+  }
+}

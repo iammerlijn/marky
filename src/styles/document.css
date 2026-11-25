@@ -1,0 +1,396 @@
+/* The document column. Simple CSS only: no blur, no large shadows (design document, section 8). */
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-text);
+  font-size: var(--size-body);
+  line-height: var(--line-height);
+  -webkit-font-smoothing: antialiased;
+}
+
+.ProseMirror {
+  max-width: var(--column-width);
+  margin: 0 auto;
+  padding: 48px 24px 120px;
+  outline: none;
+}
+
+.ProseMirror > * {
+  margin: 0 0 12px;
+}
+
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3,
+.ProseMirror h4,
+.ProseMirror h5,
+.ProseMirror h6 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 28px 0 8px;
+}
+.ProseMirror h1 { font-size: var(--size-h1); }
+.ProseMirror h2 { font-size: var(--size-h2); }
+.ProseMirror h3 { font-size: var(--size-h3); }
+.ProseMirror h4,
+.ProseMirror h5,
+.ProseMirror h6 { font-size: var(--size-body); }
+.ProseMirror > :first-child { margin-top: 0; }
+
+.ProseMirror a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 24px;
+}
+.ProseMirror li > p {
+  margin: 2px 0;
+}
+.ProseMirror li[data-item-type='task'] {
+  list-style: none;
+  position: relative;
+}
+.ProseMirror li[data-item-type='task']::before {
+  content: '';
+  position: absolute;
+  left: -22px;
+  top: 0.4em;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 3px;
+}
+.ProseMirror li[data-item-type='task'][data-checked='true']::before {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.ProseMirror li[data-item-type='task'][data-checked='true'] > p {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.ProseMirror blockquote {
+  margin-left: 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+  color: var(--text-muted);
+}
+
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+}
+
+.ProseMirror code {
+  font-family: var(--font-mono);
+  /* Show the exact characters: no ligatures such as --> to an arrow. */
+  font-variant-ligatures: none;
+  font-size: 0.87em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.ProseMirror pre {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--code-bg);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  overflow-x: auto;
+}
+.ProseMirror pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* Tables can be wider than the column: they scroll. */
+.ProseMirror table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.ProseMirror th {
+  font-weight: 600;
+}
+.ProseMirror td > p,
+.ProseMirror th > p {
+  margin: 0;
+}
+
+.ProseMirror img {
+  max-width: 100%;
+}
+
+/* Raw HTML, until the plugins for collapsibles and other HTML exist (design document, step 5). */
+.ProseMirror [data-type='html'] {
+  font-family: var(--font-mono);
+  font-size: 0.87em;
+  color: var(--text-muted);
+}
+
+/* The `/` menu. */
+.slash-menu {
+  position: fixed;
+  z-index: 10;
+  min-width: 220px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  font-size: 13px;
+}
+.slash-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.slash-item[aria-selected='true'] {
+  background: var(--code-bg);
+}
+.slash-item code {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Collapsibles: a summary line with a toggle, and the body below it. */
+.ProseMirror .collapsible {
+  margin: 0 0 12px;
+}
+.collapsible-summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: -24px;
+}
+.collapsible-toggle {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.collapsible-toggle::before {
+  content: '▸';
+  display: inline-block;
+  transition: transform 0.1s;
+}
+.collapsible.is-open > .collapsible-summary .collapsible-toggle::before {
+  transform: rotate(90deg);
+}
+.collapsible-toggle:hover {
+  background: var(--code-bg);
+}
+.collapsible-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+}
+.collapsible-body {
+  padding-left: 0;
+  margin-top: 4px;
+}
+.collapsible:not(.is-open) > .collapsible-body {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .collapsible-toggle::before {
+    transition: none;
+  }
+}
+
+/* Code blocks: a header with the language and a copy button. */
+.ProseMirror .code-block {
+  position: relative;
+  margin: 0 0 12px;
+}
+.ProseMirror .code-block > pre {
+  margin: 0;
+}
+.code-header {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  user-select: none;
+}
+.code-copy {
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 6px;
+  cursor: pointer;
+  opacity: 0;
+}
+.code-block:hover .code-copy,
+.code-copy:focus-visible {
+  opacity: 1;
+}
+
+/* Shiki colors: light by default, dark from --shiki-dark. */
+@media (prefers-color-scheme: dark) {
+  .ProseMirror .code-block code span[style] {
+    color: var(--shiki-dark) !important;
+  }
+}
+
+/* Mermaid: the diagram. The source shows only when the cursor is in the block. */
+.mermaid-diagram {
+  display: flex;
+  justify-content: center;
+  /* Space for the language label at the top. */
+  padding: 28px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: text;
+  overflow-x: auto;
+}
+.mermaid-diagram:empty::before {
+  content: 'Diagram';
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+.code-block[data-language='mermaid']:not(.is-editing) > pre {
+  display: none;
+}
+.code-block[data-language='mermaid'].is-editing > pre {
+  margin-top: 8px;
+}
+.mermaid-error {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #c4403a;
+  white-space: pre-wrap;
+}
+
+/* Raw mode: the markdown source in CodeMirror, in the same column as the document. */
+#raw .cm-editor {
+  max-width: var(--column-width);
+  margin: 0 auto;
+  padding: 48px 24px 120px;
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--bg);
+}
+#raw .cm-editor.cm-focused {
+  outline: none;
+}
+#raw .cm-scroller {
+  font-family: inherit;
+  line-height: inherit;
+}
+#raw .cm-content {
+  caret-color: var(--text);
+}
+#raw .cm-selectionBackground,
+#raw .cm-focused .cm-selectionBackground {
+  background: color-mix(in srgb, var(--accent) 25%, transparent) !important;
+}
+
+/* Front matter: a properties panel above the document. */
+.ProseMirror .frontmatter {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 24px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.frontmatter-field {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.frontmatter-field label {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.frontmatter input:not([type='checkbox']),
+.frontmatter textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--text);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+.frontmatter input:hover,
+.frontmatter textarea:hover {
+  border-color: var(--border);
+}
+.frontmatter input:focus,
+.frontmatter textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.frontmatter input[type='checkbox'] {
+  justify-self: start;
+  margin: 4px 6px;
+  accent-color: var(--accent);
+}
+.frontmatter textarea {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  resize: vertical;
+  background: var(--code-bg);
+}
+.frontmatter-error {
+  color: #c4403a;
+  font-size: 12px;
+}
+.ProseMirror .frontmatter.ProseMirror-selectednode {
+  outline: none;
+}
