@@ -203,6 +203,10 @@ A moved block stays clean, because its content did not change. The end of the fi
 
 Headings, lists, task lists, block quotes, links, images (local and remote), strikethrough, inline code, horizontal rules and footnotes.
 
+### 6.7.1 Box-drawing text
+
+Text drawn with box-drawing characters (`┌─┬─┐ │ ├─┼─┤`), for example a table copied from a terminal, is a paragraph in markdown. Marky shows it as in the source: monospace, no wrap, horizontal scroll when it is too wide. It does not convert it to a table, and a save does not change it.
+
 ### 6.8 Markdown shortcuts while you type
 
 Typing markdown syntax converts it immediately: `# ` makes a heading, `- ` makes a list, `- [ ] ` makes a task, ```` ``` ```` makes a code block, `> ` makes a quote and `---` makes a rule. A `/` menu inserts blocks: table, Mermaid, collapsible, code block and image.
@@ -218,6 +222,8 @@ Typing markdown syntax converts it immediately: `# ` makes a heading, `- ` makes
 - At startup, reopen the tabs of the last session.
 - Save: `Cmd/Ctrl+S`. There is no auto-save in v1.
 - Shortcuts use `Cmd` on macOS and `Ctrl` on Linux, never both: `O` open, `S` save, `W` close tab, `T` new tab, `N` new window.
+- `Cmd/Ctrl+W` in a window with no tabs closes the window, through the normal close path (with the unsaved-changes check).
+- macOS: the setting "Warn Before Quitting" (app menu, default on) asks before `Cmd+Q` quits. Then each window closes through its normal close path, so each window asks about unsaved changes. The setting is in `settings.json` in the app config folder: the backend builds the menu at start, before the page loads.
 - A new tab is "Untitled". Its first save opens a Save As dialog. A new file ends with a newline.
 - Each window has its own tabs. Files from the command line and from "open with" open in the focused window. Only the first window restores the session.
 - macOS has a menu bar with the same File actions, and Cut, Copy, Paste and Select All. The default Tauri menu is not used, because its `Cmd+W` closes the window.

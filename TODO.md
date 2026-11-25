@@ -15,6 +15,9 @@ and < 300 ms for 1,000 lines.
 
 ## Other open items
 
+- macOS: Quit from the Dock menu ends the app without the "Warn Before Quitting" question and
+  without the unsaved-changes check. Only `Cmd+Q` and the menu item use the quit path.
+- Linux has no quit shortcut and no settings menu. Decide if it needs them.
 - Run the app tests (`tests/e2e/`) on this machine with `tests/e2e/docker.sh`: Arch has no
   package for `WebKitWebDriver`.
 
