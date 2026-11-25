@@ -18,16 +18,15 @@ and < 300 ms for 1,000 lines.
 - Run the app tests (`tests/e2e/`) on this machine with `tests/e2e/docker.sh`: Arch has no
   package for `WebKitWebDriver`.
 
-- Measure the cold start and the memory with 10 tabs (design document, section 9). They need the
-  real window.
+- Measure the cold start again on an unlocked screen: on a locked screen, the wait for the
+  first paint was ~1 s (design document, section 9). Then decide on the target.
+- Memory: 303 MB with 1 tab and 317 MB with 10 tabs. The target is < 200 MB, but WebKitGTK
+  costs most of it. Measure macOS (WKWebView), then decide on the target.
 - Test on macOS by hand: the menu bar, "Open With", a drop on the Dock icon, `Cmd` shortcuts and
   new windows (test plan, section 8). `tauri-driver` does not support macOS.
 - macOS signing and notarization for the `.dmg`.
 - Flathub: an offline build (vendored crates, the frontend built in the Flatpak) and an app ID
   for a domain that you control. `nl.marky.Marky` is a placeholder.
-- The block map stops with an error when Milkdown makes a different number of nodes than
-  markdown blocks. Then Marky does not edit the file. Open such a file in raw mode instead.
 - A reload after a change on disk loses the undo history of that tab.
-- All Shiki languages are in the app (about 15 MB on disk). Limit them to common languages.
 - The GLib warning "Error writing credentials to socket: Broken pipe" at the start of the
   Flatpak. The app works, but find the cause.

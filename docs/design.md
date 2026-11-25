@@ -180,6 +180,7 @@ A moved block stays clean, because its content did not change. The end of the fi
 
 - Shiki highlighting, a language label and a copy button.
 - Load Shiki languages only when a file needs them.
+- Marky includes about 60 common languages (`src/editor/plugins/languages.ts`), not all ~240 of Shiki: they added about 15 MB to the app. Other languages show as plain code.
 - Inside a code block, typing works as in a plain text editor (`Tab` indents).
 
 ### 6.5 Front matter
@@ -196,6 +197,7 @@ A moved block stays clean, because its content did not change. The end of the fi
 - When you go back to WYSIWYG, Marky parses the source again.
 - If you did not edit the source, Marky keeps the editor state, with its undo history.
 - If you edited the source, a save writes your source text exactly. Later edits in the editor change only their own blocks.
+- If the block map cannot read a file (the editor makes a different number of nodes than the markdown has blocks), the file opens in raw mode with a message. You can go back to the editor when the source maps again.
 
 ### 6.7 Other GFM
 
@@ -275,7 +277,17 @@ Measure these targets in CI on macOS and Linux for each release.
 | Save after an edit in a 5,000-line file | 4 ms | |
 | Flatpak download | 5.8 MB | Yes |
 
-Not measured yet: cold start and memory with 10 tabs (they need the real window).
+**Measured in the release app (2026-11-25, Linux, `dev/measure-app.sh`):**
+
+| Metric | Result | Target met? |
+|---|---|---|
+| Cold start: process start to the page script | ~365 ms | |
+| Cold start: process start to the open document, before the paint | ~550 ms | No (< 500 ms) |
+| Cold start to the painted document | ~1,550 ms, but the screen was locked: ~1 s is the wait for two frames | Not known |
+| Memory with 1 tab | 303 MB PSS | |
+| Memory with 10 tabs | 317 MB PSS (app 102, WebKit web process 177, network process 36) | No (< 200 MB) |
+
+Each tab costs only about 1.5 MB. The memory is mostly the base cost of WebKitGTK.
 `content-visibility: auto` on the blocks gave 740 ms for 5,000 lines, but it changes the layout
 (margins do not collapse, the collapsible arrow is clipped), so it is not used.
 
