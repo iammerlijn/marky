@@ -20,8 +20,9 @@ body {
 .ProseMirror {
   max-width: var(--column-width);
   margin: 0 auto;
-  padding: 48px 24px 120px;
+  padding: 56px 24px 120px;
   outline: none;
+  caret-color: var(--accent);
 }
 
 .ProseMirror > * {
@@ -38,7 +39,11 @@ body {
   line-height: 1.3;
   margin: 28px 0 8px;
 }
-.ProseMirror h1 { font-size: var(--size-h1); }
+.ProseMirror h1 {
+  font-size: var(--size-h1);
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
 .ProseMirror h2 { font-size: var(--size-h2); }
 .ProseMirror h3 { font-size: var(--size-h3); }
 .ProseMirror h4,
@@ -83,14 +88,16 @@ body {
   position: absolute;
   left: -22px;
   top: 0.4em;
-  width: 12px;
-  height: 12px;
-  border: 1.5px solid var(--text-muted);
-  border-radius: 3px;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--dash);
+  border-radius: 4px;
 }
 .ProseMirror li[data-item-type='task'][data-checked='true']::before {
-  background: var(--accent);
-  border-color: var(--accent);
+  border: none;
+  background: var(--accent) center / 10px no-repeat
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 5.2l2 2 4-4.4' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 .ProseMirror li[data-item-type='task'][data-checked='true'] > p {
   color: var(--text-muted);
@@ -114,10 +121,10 @@ body {
   font-family: var(--font-mono);
   /* Show the exact characters: no ligatures such as --> to an arrow. */
   font-variant-ligatures: none;
-  font-size: 0.87em;
+  font-size: 0.8125em;
   background: var(--code-bg);
   border-radius: 4px;
-  padding: 1px 4px;
+  padding: 2px 6px;
 }
 
 .ProseMirror pre {
@@ -136,7 +143,7 @@ body {
   font-size: inherit;
 }
 
-/* Tables can be wider than the column: they scroll. */
+/* Tables can be wider than the column: they scroll. Only lines between the rows. */
 .ProseMirror table {
   display: block;
   overflow-x: auto;
@@ -145,14 +152,21 @@ body {
 }
 .ProseMirror th,
 .ProseMirror td {
-  border: 1px solid var(--border);
-  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px 10px 0;
   text-align: left;
   vertical-align: top;
 }
 .ProseMirror th {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 13px;
   font-weight: 600;
-  background: color-mix(in srgb, var(--code-bg) 60%, transparent);
+  color: var(--text-muted);
+}
+.ProseMirror th:last-child,
+.ProseMirror td:last-child {
+  padding-right: 0;
 }
 .ProseMirror td > p,
 .ProseMirror th > p {
@@ -336,9 +350,9 @@ body {
   display: flex;
   justify-content: center;
   /* Space for the language label at the top. */
-  padding: 28px 16px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  padding: 28px;
+  background: var(--surface);
+  border-radius: 10px;
   cursor: text;
   overflow-x: auto;
 }
@@ -368,11 +382,11 @@ body {
 #raw .cm-editor {
   max-width: var(--column-width);
   margin: 0 auto;
-  padding: 48px 24px 120px;
+  padding: 56px 24px 120px;
   font-family: var(--font-mono);
   font-variant-ligatures: none;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.75;
   color: var(--text);
   background: var(--bg);
 }
@@ -384,7 +398,10 @@ body {
   line-height: inherit;
 }
 #raw .cm-content {
-  caret-color: var(--text);
+  caret-color: var(--accent);
+}
+#raw .cm-cursor {
+  border-left: 2px solid var(--accent);
 }
 #raw .cm-selectionBackground,
 #raw .cm-focused .cm-selectionBackground {

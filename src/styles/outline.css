@@ -10,69 +10,75 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
-  max-height: calc(100vh - 120px);
+  gap: 12px;
+  max-height: calc(100vh - 148px);
   overflow: hidden;
-  padding: 8px 12px 8px 16px;
+  padding: 8px 12px 8px 18px;
   background: none;
   border: none;
   border-radius: var(--radius);
   cursor: pointer;
 }
+/* A heading of the top level is 18 px. Deeper headings are shorter and end at the same place. */
 .outline-dash {
   flex-shrink: 0;
-  width: calc(16px - var(--depth) * 2px);
-  height: 2px;
-  border-radius: 1px;
-  background: color-mix(in srgb, var(--text-muted) 40%, transparent);
+  width: max(6px, calc(18px - var(--depth) * 6px));
+  height: 3px;
+  margin-left: calc(18px - max(6px, calc(18px - var(--depth) * 6px)));
+  border-radius: 2px;
+  background: var(--dash);
 }
 .outline-dash.is-current {
-  width: calc(20px - var(--depth) * 2px);
-  background: var(--text);
+  background: var(--accent);
 }
 .outline-panel {
   display: none;
   position: absolute;
   top: 0;
-  left: 8px;
-  width: 260px;
-  max-height: calc(100vh - 104px);
+  left: 10px;
+  width: 256px;
+  box-sizing: border-box;
+  max-height: calc(100vh - 132px);
   overflow-y: auto;
-  padding: 4px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 8px;
+  background: var(--panel-bg);
+  border-radius: 10px;
+  box-shadow: var(--panel-shadow);
   font-size: 13px;
 }
 .outline.is-open .outline-panel {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .outline-item {
   display: block;
   width: 100%;
-  padding: 4px 8px 4px calc(8px + var(--depth) * 12px);
+  flex-shrink: 0;
+  padding: 7px 10px 7px calc(10px + var(--depth) * 12px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
   font: inherit;
-  color: var(--text-muted);
+  color: var(--text);
   background: none;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
 }
 .outline-item[data-depth='0'] {
-  color: var(--text);
-}
-.outline-item[aria-current] {
-  color: var(--accent);
+  font-weight: 600;
 }
 .outline-item:hover,
 .outline-item:focus-visible {
-  background: var(--code-bg);
+  background: var(--hover-bg);
   outline: none;
+}
+.outline-item[aria-current] {
+  color: var(--accent-text);
+  font-weight: 600;
+  background: var(--tint);
 }
 .outline-rail:focus-visible {
   outline: 2px solid var(--accent);

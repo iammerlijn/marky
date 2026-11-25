@@ -1,19 +1,30 @@
-/* Design document, section 8. Starting values: tune them with a visual check. */
+/* Design document, section 8, and docs/style.md. */
 :root {
   --bg: #ffffff;
   --text: #2a2b2f;
   --text-muted: #6b6f76;
   --border: #e6e7ea;
-  --code-bg: #f4f5f7;
+  --code-bg: #f1f2f4;
   --accent: #5e6ad2;
+  /* Accent text on --tint keeps 4.5:1. */
+  --accent-text: #4f5bc4;
+  --tint: rgba(94, 106, 210, 0.08);
+  /* The title bar, the status bar, diagrams. */
+  --surface: #f7f7f8;
+  --hover-bg: #f4f5f7;
+  --pressed-bg: #e9eaed;
+  /* The dashes of the outline rail and empty task boxes. */
+  --dash: #d3d5d9;
+  --panel-bg: #ffffff;
+  --panel-shadow: 0 0 0 1px #e6e7ea, 0 12px 32px rgba(20, 22, 30, 0.1);
 
   --font-text: Inter, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --size-body: 15px;
-  --line-height: 1.6;
-  --size-h1: 24px;
-  --size-h2: 19px;
-  --size-h3: 16px;
+  --size-body: 16px;
+  --line-height: 1.7;
+  --size-h1: 32px;
+  --size-h2: 20px;
+  --size-h3: 17px;
   --column-width: 720px;
   --radius: 6px;
 }
@@ -22,9 +33,17 @@
   :root {
     --bg: #17181b;
     --text: #d6d7da;
-    --text-muted: #8a8f98;
-    --border: #2b2d31;
-    --code-bg: #212226;
+    --text-muted: #8b8e95;
+    --border: #2a2c31;
+    --code-bg: #26272c;
     --accent: #7c85e0;
+    --accent-text: #a3a9ee;
+    --tint: rgba(124, 133, 224, 0.14);
+    --surface: #1d1e22;
+    --hover-bg: #24252a;
+    --pressed-bg: #2a2c31;
+    --dash: #45474d;
+    --panel-bg: #202126;
+    --panel-shadow: 0 0 0 1px #2a2c31, 0 12px 32px rgba(0, 0, 0, 0.45);
   }
 }
