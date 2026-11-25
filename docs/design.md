@@ -293,11 +293,21 @@ Measure these targets in CI on macOS and Linux for each release.
 
 | Metric | Result | Target met? |
 |---|---|---|
-| Cold start: process start to the page script | ~365 ms | |
-| Cold start: process start to the open document, before the paint | ~550 ms | No (< 500 ms) |
-| Cold start to the painted document | ~1,550 ms, but the screen was locked: ~1 s is the wait for two frames | Not known |
-| Memory with 1 tab | 303 MB PSS | |
-| Memory with 10 tabs | 317 MB PSS (app 102, WebKit web process 177, network process 36) | No (< 200 MB) |
+| Cold start: process start to the page script | ~360 ms (was ~425 ms) | |
+| Cold start: process start to the open document, before the paint | ~565 ms (was ~635 ms) | No (< 500 ms) |
+| Cold start to the painted document | ~605 ms (was ~1,645 ms) | No (< 500 ms) |
+| Memory with 1 tab | 254 MB PSS | |
+| Memory with 10 tabs | 280 MB PSS (app 96, WebKit web process 158, network process 25) | No (< 200 MB) |
+
+The cold start values are the median of 10 starts with one file (2026-11-25, Linux, Hyprland), after
+[issue 4](https://github.com/iammerlijn/marky/issues/4); a "was" value is from the build
+before it. Two changes made the start faster:
+
+- CodeMirror (raw mode) is not in the main script. It loads with `import()` the first time raw
+  mode opens. The main script went from 1.17 MB to 0.68 MB.
+- The window starts hidden and `src/app/main.ts` shows it when the files are open. No empty
+  window shows. Before, the wait for the first painted frame was about 1 s; now the paint comes
+  directly after the window shows.
 
 Each tab costs only about 1.5 MB. The memory is mostly the base cost of WebKitGTK.
 `content-visibility: auto` on the blocks gave 740 ms for 5,000 lines, but it changes the layout
