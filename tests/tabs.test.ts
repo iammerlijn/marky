@@ -174,6 +174,20 @@ describe('tabs', () => {
     expect(tab('/a.md').dirty).toBe(true)
   })
 
+  test('an edit during a save keeps the tab dirty', async () => {
+    await tabs.open('/a.md')
+    type('first ')
+    const save = backend.save.bind(backend)
+    let finish = () => {}
+    backend.save = (...args) => new Promise((resolve) => (finish = () => resolve(save(...args))))
+    const saved = tabs.save()
+    type('second ')
+    finish()
+    expect(await saved).toBe(true)
+    expect(backend.files.get('/a.md')!.text).not.toContain('second')
+    expect(tab('/a.md').dirty).toBe(true)
+  })
+
   test('two saves in a row: the second save keeps the blocks of the first', async () => {
     await tabs.open('/a.md')
     type('One ')

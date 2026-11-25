@@ -181,7 +181,8 @@ export class Tabs {
     // The saved text is the new original: the next save keeps all its blocks.
     tab.source = this.tryLoad(result.text) ?? tab.source
     tab.saved = result.text
-    tab.dirty = false
+    // An edit during the save is not in the file.
+    tab.dirty = this.output(tab).changed
     tab.banner = tab.rawOnly ? 'raw-only' : null
     this.emit()
     return true
@@ -196,7 +197,7 @@ export class Tabs {
     tab.path = path
     tab.source = load(this.md, text)
     tab.saved = text
-    tab.dirty = false
+    tab.dirty = this.output(tab).changed
     this.emit()
     await this.backend.watch(path)
     return true
