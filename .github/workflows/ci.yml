@@ -44,7 +44,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v5
       - name: Install the system libraries, WebKitWebDriver and a virtual display
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb dbus
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf webkitgtk-webdriver xvfb dbus
       - run: cargo install tauri-driver --locked
       - run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - run: npm ci
