@@ -18,6 +18,7 @@ import { boxDrawing } from './plugins/boxdrawing'
 import { codeblock } from './plugins/codeblock'
 import { collapsible } from './plugins/collapsible'
 import { frontmatter } from './plugins/frontmatter'
+import { outline } from './plugins/outline'
 import { placeholder } from './plugins/placeholder'
 import { slash } from './plugins/slash'
 
@@ -49,6 +50,7 @@ export async function createEditor(root: HTMLElement, text = ''): Promise<Editor
     .use(slash)
     .use(placeholder)
     .use(boxDrawing)
+    .use(outline)
     .create()
 }
 

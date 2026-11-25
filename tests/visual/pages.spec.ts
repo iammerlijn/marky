@@ -17,6 +17,28 @@ async function ready(page: Page) {
   await page.evaluate(() => window.scrollTo(0, 0))
 }
 
+test('outline: keyboard', async ({ page }) => {
+  await page.goto('/dev/preview.html')
+  await ready(page)
+  await expect(page.locator('.outline-item').first()).toHaveAttribute('aria-current', 'location')
+  await page.locator('.outline-rail').focus()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.outline-item').first()).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.outline-panel')).toBeHidden()
+  await expect(page.locator('.outline-rail')).toBeFocused()
+  // Enter on the last heading scrolls to it and puts the cursor in it.
+  await page.keyboard.press('Enter')
+  const items = page.locator('.outline-item')
+  for (let i = 1; i < (await items.count()); i++) await page.keyboard.press('ArrowDown')
+  const last = await items.last().textContent()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.outline-panel')).toBeHidden()
+  const heading = page.locator('.ProseMirror').getByRole('heading', { name: last! })
+  await expect(heading).toBeInViewport()
+  expect(await page.evaluate(() => window.getSelection()?.anchorNode?.parentElement?.closest('h1, h2, h3, h4, h5, h6')?.textContent)).toBe(last)
+})
+
 const documents = [
   ['sample', '/dev/preview.html'],
   ['tables', '/dev/preview.html?file=tables.md'],
@@ -60,6 +82,30 @@ for (const colorScheme of ['light', 'dark'] as const) {
         await expect(page).toHaveScreenshot(`app-${state}-scrolled-${colorScheme}.png`)
       })
     }
+
+    test('outline: closed', async ({ page }) => {
+      await page.goto('/dev/preview.html?file=outline.md')
+      await ready(page)
+      await page.evaluate(() => window.scrollTo(0, 300))
+      // The dash of the current section updates while you scroll.
+      await expect(page.locator('.outline-dash.is-current')).not.toHaveCount(0)
+      await expect(page.locator('.outline-dash').first()).not.toHaveClass(/is-current/)
+      await expect(page).toHaveScreenshot(`outline-closed-${colorScheme}.png`)
+    })
+
+    test('outline: open', async ({ page }) => {
+      await page.goto('/dev/preview.html?file=outline.md')
+      await ready(page)
+      await page.evaluate(() => window.scrollTo(0, 300))
+      // Not hover(): the open panel covers the rail, so Playwright would wait for the rail.
+      const rail = (await page.locator('.outline-rail').boundingBox())!
+      await page.mouse.move(rail.x + rail.width / 2, rail.y + rail.height / 2)
+      await expect(page.locator('.outline-panel')).toBeVisible()
+      await expect(page).toHaveScreenshot(`outline-open-${colorScheme}.png`)
+      // The panel closes after the mouse leaves it.
+      await page.mouse.move(600, 400)
+      await expect(page.locator('.outline-panel')).toBeHidden()
+    })
 
     test('slash menu', async ({ page }) => {
       await page.goto('/dev/preview.html')

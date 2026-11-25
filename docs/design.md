@@ -104,7 +104,10 @@ The backend is small. It does only what the webview cannot do.
 
 ### 4.2 Frontend
 
-- The Svelte UI contains the tab bar, the outline sidebar, the dialogs and the settings.
+- The Svelte UI contains the tab bar, the dialogs and the settings.
+- The outline is a ProseMirror plugin (`src/editor/plugins/outline.ts`). A thin rail at the left edge shows one dash for each heading (`h1` to `h6`, also in collapsibles). Deeper headings have shorter dashes. The dash of the current section is darker and longer, and it updates while you scroll. The rail has a fixed position, so it takes no width from the document column.
+- Hover over the rail to open a panel over the document, with one line for each heading. A click scrolls to the heading and puts the cursor there. The panel closes a short time after the mouse leaves it. With the keyboard: `Tab` to the rail, `Enter` opens the panel, arrow keys move, `Enter` goes to the heading, `Escape` closes. There is no shortcut.
+- The list comes from the editor state of the active tab: again after a tab change, and a short time after an edit. There is no rail when the document has no headings, and in raw mode.
 - There is one Milkdown editor view. Each tab keeps its own ProseMirror `EditorState`. When you change tabs, the app swaps the state into the view.
 - Each tab stores: the path, the original text, the block map (section 5), the dirty flag and the modification time on disk.
 

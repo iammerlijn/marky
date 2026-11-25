@@ -140,6 +140,12 @@ Why both: the public corpus makes the tests repeatable in CI. The private corpus
 - Paste from a web page, GitHub, Linear and VS Code: the result is correct markdown, with no style or script garbage.
 - Copy from Marky and paste in a plain text editor: the result is markdown.
 
+### 5.7 Outline
+
+- The heading list comes from the document: the levels `h1` to `h6`, inline code as a separate part, headings inside a collapsible, and no list for a document without headings (`tests/outline.test.ts`).
+- Visual tests: the closed rail with the current section, and the open panel, in light and dark mode.
+- Keyboard: `Enter` on the rail opens the panel, `Escape` closes it, and `Enter` on a line moves the cursor to the heading.
+
 ## 6. File safety tests
 
 **Why:** these tests protect your work from crashes and from other apps. A data-loss bug in this part can delete a full file, not only a block.
@@ -170,6 +176,7 @@ Why both: the public corpus makes the tests repeatable in CI. The private corpus
 - Open the same file two times: Marky selects the existing tab.
 - Restart the app: the tabs of the last session open again.
 - Memory with 10 tabs open: less than 200 MB.
+- Scroll a long document: the tab bar and the "changed on disk" bar stay at the top, also in raw mode (visual test).
 
 ## 8. Platform tests
 

@@ -198,6 +198,16 @@ function toggleOpen(view: EditorView, pos: number) {
   view.dispatch(view.state.tr.setMeta(openKey, pos))
 }
 
+// Open each closed collapsible around a position, so that the content there is visible.
+export function openAround(view: EditorView, pos: number) {
+  const $pos = view.state.doc.resolve(pos)
+  for (let depth = $pos.depth; depth > 0; depth--) {
+    if ($pos.node(depth).type.name !== 'collapsible') continue
+    const at = $pos.before(depth)
+    if (!openKey.getState(view.state)!.includes(at)) toggleOpen(view, at)
+  }
+}
+
 // The summary is a text field above the body. A toggle opens and closes the body.
 class CollapsibleView implements NodeView {
   dom: HTMLElement
