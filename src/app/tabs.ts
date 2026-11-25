@@ -2,7 +2,7 @@
 // EditorState, so its content, selection and undo history stay when you change tabs.
 import { EditorState, type Plugin } from '@milkdown/kit/prose/state'
 import type { EditorView } from '@milkdown/kit/prose/view'
-import { load, save, type Markdown, type Source } from '../markdown/preserve'
+import { BlockMapError, load, save, type Markdown, type Source } from '../markdown/preserve'
 import type { Backend, SaveError } from './backend'
 
 export interface Tab {
@@ -18,11 +18,13 @@ export interface Tab {
   state: EditorState
   dirty: boolean
   scroll: number
-  banner: 'changed' | 'conflict' | 'deleted' | null
+  banner: 'changed' | 'conflict' | 'deleted' | 'raw-only' | null
   // Raw mode: the markdown source that the tab shows instead of the editor. null in the editor.
   rawText: string | null
   // The text when raw mode started. Back to the editor without a change keeps the editor state.
   rawStart: string | null
+  // The block map cannot read the text: the tab shows only raw mode, and has no editor state.
+  rawOnly: boolean
 }
 
 export type CloseAnswer = 'save' | 'discard' | 'cancel'
@@ -69,14 +71,24 @@ export class Tabs {
     return tab
   }
 
-  // Throws when the file cannot be opened, or when the block map fails: then Marky
-  // does not edit the file, because it cannot save it safely.
+  // Throws when the file cannot be opened. When the block map fails, rawOnly is true: the
+  // editor cannot save the file safely, so the tab shows only the markdown source.
   private async read(path: string) {
     const opened = await this.backend.open(path).catch((error) => {
       throw new Error(String(error))
     })
-    const source = load(this.md, opened.text)
-    return { source, saved: opened.text, version: opened.version, state: this.stateFor(source) }
+    const mapped = this.tryLoad(opened.text)
+    const source = mapped ?? load(this.md, '')
+    return { source, saved: opened.text, version: opened.version, state: this.stateFor(source), rawOnly: !mapped }
+  }
+
+  private tryLoad(text: string): Source | null {
+    try {
+      return load(this.md, text)
+    } catch (error) {
+      if (error instanceof BlockMapError) return null
+      throw error
+    }
   }
 
   private stateFor(source: Source): EditorState {
@@ -93,7 +105,9 @@ export class Tabs {
     const existing = this.tabs.find((t) => t.path === path)
     if (existing) return this.activate(existing.id)
     const read = await this.read(path)
-    const tab: Tab = { id: this.nextId++, path, ...read, dirty: false, scroll: 0, banner: null, rawText: null, rawStart: null }
+    const raw = read.rawOnly ? read.saved : null
+    const banner = read.rawOnly ? 'raw-only' : null
+    const tab: Tab = { id: this.nextId++, path, ...read, dirty: false, scroll: 0, banner, rawText: raw, rawStart: raw }
     this.tabs.push(tab)
     this.activate(tab.id)
     await this.backend.watch(path)
@@ -113,6 +127,7 @@ export class Tabs {
       banner: null,
       rawText: null,
       rawStart: null,
+      rawOnly: false,
     }
     this.tabs.push(tab)
     this.activate(tab.id)
@@ -163,10 +178,10 @@ export class Tabs {
       return false
     }
     // The saved text is the new original: the next save keeps all its blocks.
-    tab.source = load(this.md, result.text)
+    tab.source = this.tryLoad(result.text) ?? tab.source
     tab.saved = result.text
     tab.dirty = false
-    tab.banner = null
+    tab.banner = tab.rawOnly ? 'raw-only' : null
     this.emit()
     return true
   }
@@ -221,9 +236,9 @@ export class Tabs {
 
   private async reload(tab: Tab) {
     if (tab.path === null) return
-    const { source, saved, version, state } = await this.read(tab.path)
-    Object.assign(tab, { source, saved, version, dirty: false, banner: null })
-    if (tab.rawText !== null) tab.rawText = tab.rawStart = saved
+    const { source, saved, version, state, rawOnly } = await this.read(tab.path)
+    Object.assign(tab, { source, saved, version, rawOnly, dirty: false, banner: rawOnly ? 'raw-only' : null })
+    if (tab.rawText !== null || rawOnly) tab.rawText = tab.rawStart = saved
     if (tab === this.active) {
       const top = this.scroll.get()
       this.view.updateState(state)
@@ -266,15 +281,19 @@ export class Tabs {
     if (id === undefined) return
     const tab = this.find(id)
     if (tab.rawText === null) return
-    if (tab.rawText !== tab.rawStart) {
+    if (tab.rawText !== tab.rawStart || tab.rawOnly) {
       // The new text is the new original: a save writes it exactly, and new edits only change
-      // their own blocks.
+      // their own blocks. Throws a BlockMapError when the text still cannot be mapped.
       tab.source = load(this.md, tab.rawText)
       const state = this.stateFor(tab.source)
       if (tab === this.active) this.view.updateState(state)
       else tab.state = state
     }
     tab.rawText = tab.rawStart = null
+    if (tab.rawOnly) {
+      tab.rawOnly = false
+      tab.banner = null
+    }
     this.emit()
   }
 

@@ -32,6 +32,7 @@
     changed: 'This file changed on disk.',
     conflict: 'This file changed on disk. Marky did not save.',
     deleted: 'This file was deleted or renamed on disk.',
+    'raw-only': 'Marky cannot show this file as a document, so it shows the markdown source. A save writes the source exactly.',
   }
 </script>
 
@@ -54,7 +55,7 @@
 {#if view.active?.banner}
   <div class="banner" role="alert">
     <span>{bannerText[view.active.banner]}</span>
-    {#if view.active.banner !== 'deleted'}
+    {#if view.active.banner === 'changed' || view.active.banner === 'conflict'}
       <button type="button" onclick={() => onKeepMine(view.active!.id)}>Keep mine</button>
       <button type="button" onclick={() => onLoad(view.active!.id)}>Load from disk</button>
     {/if}

@@ -22,6 +22,15 @@ interface Block {
   node: Node | null
 }
 
+// The editor made a different number of nodes than the markdown has blocks. Then Marky cannot
+// save the file safely as a document. The app opens such a file in raw mode.
+export class BlockMapError extends Error {
+  constructor(blocks: number, nodes: number) {
+    super(`Marky cannot show this text as a document (${blocks} markdown blocks, ${nodes} editor nodes).`)
+    this.name = 'BlockMapError'
+  }
+}
+
 export interface Source {
   text: string
   doc: Node
@@ -42,7 +51,7 @@ export function load(md: Markdown, text: string): Source {
   // An empty document still has one empty paragraph in the editor.
   const placeholder = visible === 0 && doc.childCount === 1 && doc.firstChild!.content.size === 0
   if (visible !== doc.childCount && !placeholder) {
-    throw new Error(`block map: ${parsed.length} markdown blocks, ${doc.childCount} editor nodes`)
+    throw new BlockMapError(parsed.length, doc.childCount)
   }
 
   const blocks: Block[] = []

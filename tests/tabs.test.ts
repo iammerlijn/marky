@@ -61,7 +61,16 @@ beforeEach(async () => {
   const editor = await createEditor(root)
   view = editor.ctx.get(editorViewCtx)
   chosenPath = null
-  tabs = new Tabs(view, markdownOf(editor), backend, { get: () => scrollTop, set: (top) => (scrollTop = top) }, async () => chosenPath)
+  // A text with BREAK_THE_BLOCK_MAP gets one more markdown block than editor nodes. No real file
+  // causes this yet, but Marky must stay safe when one does.
+  const md = markdownOf(editor)
+  const read = md.read
+  md.read = (text) => {
+    const result = read(text)
+    if (text.includes('BREAK_THE_BLOCK_MAP')) result.blocks.push({ start: text.length, end: text.length, hidden: false })
+    return result
+  }
+  tabs = new Tabs(view, md, backend, { get: () => scrollTop, set: (top) => (scrollTop = top) }, async () => chosenPath)
   destroy = async () => {
     await editor.destroy()
     root.remove()
@@ -446,6 +455,50 @@ describe('raw mode', () => {
     await tabs.changed('/a.md', version)
     expect(tab('/a.md').banner).toBe('changed')
     expect(tabs.active?.rawText).toBe('mine\n')
+  })
+})
+
+describe('a file that the block map cannot read', () => {
+  const broken = '# Broken\n\nBREAK_THE_BLOCK_MAP\n'
+
+  test('opens in raw mode with a message', async () => {
+    backend.write('/broken.md', broken)
+    await tabs.open('/broken.md')
+    expect(tabs.active?.rawText).toBe(broken)
+    expect(tabs.active?.banner).toBe('raw-only')
+  })
+
+  test('a save in raw mode writes the source exactly', async () => {
+    backend.write('/broken.md', broken)
+    await tabs.open('/broken.md')
+    tabs.setRawText(broken + '\nMore.\n')
+    expect(await tabs.save()).toBe(true)
+    expect(backend.files.get('/broken.md')!.text).toBe(broken + '\nMore.\n')
+  })
+
+  test('back to the editor fails while the text still breaks the block map', async () => {
+    backend.write('/broken.md', broken)
+    await tabs.open('/broken.md')
+    expect(() => tabs.leaveRaw()).toThrow()
+    expect(tabs.active?.rawText).toBe(broken)
+  })
+
+  test('back to the editor works when the source is fixed in raw mode', async () => {
+    backend.write('/broken.md', broken)
+    await tabs.open('/broken.md')
+    tabs.setRawText('# Fixed\n')
+    tabs.leaveRaw()
+    expect(tabs.active?.rawText).toBeNull()
+    expect(tabs.active?.banner).toBeNull()
+    expect(docText()).toBe('Fixed')
+  })
+
+  test('a change on disk without edits reloads the source', async () => {
+    backend.write('/broken.md', broken)
+    await tabs.open('/broken.md')
+    const version = backend.write('/broken.md', broken + 'Changed.\n')
+    await tabs.changed('/broken.md', version)
+    expect(tabs.active?.rawText).toBe(broken + 'Changed.\n')
   })
 })
 
