@@ -177,6 +177,7 @@ function perform(action: Action) {
     view.focus()
   } else if (action === 'new-window') void run(() => invoke('new_window'))
   else if (action === 'toggle-raw') toggleRaw()
+  else if (action === 'quit') void run(() => invoke('quit_app'))
 }
 
 window.addEventListener('keydown', (event) => {
