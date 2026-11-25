@@ -79,6 +79,14 @@ for (const colorScheme of ['light', 'dark'] as const) {
         await page.evaluate(() => window.scrollTo(0, 400))
         expect(await page.evaluate(() => window.scrollY)).toBe(400)
         expect((await page.locator('.tab-bar').boundingBox())?.y).toBe(0)
+        // Mermaid loads only when a diagram is visible: wait for the diagrams in view after the scroll.
+        for (const diagram of await page.locator('.mermaid-diagram').all()) {
+          const inView = await diagram.evaluate((el) => {
+            const box = el.getBoundingClientRect()
+            return box.bottom > 0 && box.top < window.innerHeight
+          })
+          if (inView) await diagram.locator('svg').waitFor()
+        }
         await expect(page).toHaveScreenshot(`app-${state}-scrolled-${colorScheme}.png`)
       })
     }

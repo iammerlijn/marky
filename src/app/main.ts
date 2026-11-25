@@ -22,6 +22,11 @@ import { Tabs, type CloseAnswer, type Tab } from './tabs'
 // For dev/measure-app.sh (see bench_mark at the end of this file).
 void invoke('bench_mark', { label: 'script' })
 const appWindow = getCurrentWindow()
+// macOS hides the window buttons in full screen: then the tab bar needs no room for them.
+const syncFullscreen = async () =>
+  document.documentElement.classList.toggle('fullscreen', await appWindow.isFullscreen())
+void syncFullscreen()
+void appWindow.onResized(() => void syncFullscreen())
 // The first window restores and saves the session and takes the files from the command line.
 // A window from Cmd/Ctrl+N starts empty.
 const isFirstWindow = appWindow.label === 'main'
