@@ -93,13 +93,23 @@ export function save(md: Markdown, source: Source, doc: Node): { text: string; c
   }
   const used = new Set(clean)
   // Moved blocks: equal to an original block, but not at the same place.
+  // Equal nodes have the same type and text, so only the blocks with that key are compared.
+  const key = (node: Node) => node.type.name + '\0' + node.textContent
+  const free = new Map<string, number[]>()
+  for (const i of visible) {
+    if (used.has(i)) continue
+    const k = key(blocks[i].node!)
+    if (!free.has(k)) free.set(k, [])
+    free.get(k)!.push(i)
+  }
   for (let j = 0; j < current.length; j++) {
     if (origin[j] >= 0) continue
-    const free = visible.filter((i) => !used.has(i))
-    const i = free.find((i) => current[j] === blocks[i].node) ?? free.find((i) => sameContent(current[j], blocks[i].node!))
-    if (i !== undefined) {
-      origin[j] = i
-      used.add(i)
+    const list = free.get(key(current[j])) ?? []
+    let k = list.findIndex((i) => current[j] === blocks[i].node)
+    if (k < 0) k = list.findIndex((i) => sameContent(current[j], blocks[i].node!))
+    if (k >= 0) {
+      origin[j] = list[k]
+      used.add(list.splice(k, 1)[0])
     }
   }
   // Edited blocks: between two clean blocks, pair the new nodes with the removed blocks in order.
@@ -213,7 +223,9 @@ function matchNodes(a: readonly Node[], b: readonly Node[]): [number, number][] 
   const pairs: [number, number][] = []
   let i0 = 0
   let j0 = 0
-  const anchors = commonSubsequence(a.length, b.length, (i, j) => a[i] === b[j])
+  // b has each node object once, so the same objects are a longest increasing subsequence.
+  const index = new Map(b.map((node, j) => [node, j]))
+  const anchors = increasing(a.map((node) => index.get(node) ?? -1))
   for (const [i, j] of [...anchors, [a.length, b.length]]) {
     for (const [x, y] of commonSubsequence(i - i0, j - j0, (x, y) => sameContent(a[i0 + x], b[j0 + y]))) {
       pairs.push([i0 + x, j0 + y])
@@ -224,6 +236,31 @@ function matchNodes(a: readonly Node[], b: readonly Node[]): [number, number][] 
   }
   return pairs
 }
+
+// Longest strictly increasing subsequence of the values that are not -1, as pairs
+// [index, value]. Patience sort: O(n log n).
+function increasing(values: number[]): [number, number][] {
+  const tails: number[] = []
+  const previous = new Array<number>(values.length).fill(-1)
+  values.forEach((value, i) => {
+    if (value < 0) return
+    let low = 0
+    let high = tails.length
+    while (low < high) {
+      const middle = (low + high) >> 1
+      if (values[tails[middle]] < value) low = middle + 1
+      else high = middle
+    }
+    previous[i] = low > 0 ? tails[low - 1] : -1
+    tails[low] = i
+  })
+  const pairs: [number, number][] = []
+  for (let i = tails.at(-1) ?? -1; i >= 0; i = previous[i]) pairs.push([i, values[i]])
+  return pairs.reverse()
+}
+
+// Larger tables use too much memory. Then only the common start and end pair.
+const maxTable = 1 << 20
 
 // Longest common subsequence of a and b, as pairs [index in a, index in b].
 // The common start and end are removed first, so a usual edit gives a very small table.
@@ -238,6 +275,7 @@ function commonSubsequence(a: number, b: number, equal: (i: number, j: number) =
 
   const n = endA - start
   const m = endB - start
+  if ((n + 1) * (m + 1) > maxTable) return pairs.concat(tail)
   const table = new Uint32Array((n + 1) * (m + 1))
   const at = (i: number, j: number) => i * (m + 1) + j
   for (let i = n - 1; i >= 0; i--) {

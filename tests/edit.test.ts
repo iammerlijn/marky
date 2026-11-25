@@ -167,6 +167,17 @@ Last paragraph.
     expect(doc.save().text).toBe('* same\n')
   })
 
+  // The match of the blocks does not use a table of blocks × blocks (memory) for a large move.
+  test('reverse 2000 blocks: each block keeps its text', async () => {
+    const paragraphs = Array.from({ length: 2000 }, (_, i) => `Paragraph ${i}.`)
+    doc = await open(paragraphs.join('\n\n') + '\n')
+    const { view } = doc
+    const reversed: Node[] = []
+    view.state.doc.forEach((node) => reversed.unshift(node))
+    view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, reversed))
+    expect(doc.save().text).toBe(paragraphs.reverse().join('\n\n') + '\n')
+  })
+
   test('edit, then undo: the file does not change', async () => {
     doc = await open(original)
     const { view } = doc
