@@ -263,6 +263,21 @@ Rules:
 
 Measure these targets in CI on macOS and Linux for each release.
 
+**Measured (2026-11-25, Linux, production build in WebKit, `dev/bench.mjs`):**
+
+| Metric | Result | Target met? |
+|---|---|---|
+| Open a 1,000-line file | 237 ms | Yes |
+| Open a 2,000-line file | 327 ms | No |
+| Open a 5,000-line file | ~970 ms (parse and block map ~355 ms, the rest is the DOM) | No |
+| Typing delay in a 5,000-line file | median 16 ms, p95 17 ms (one frame) | Yes |
+| Save after an edit in a 5,000-line file | 4 ms | |
+| Flatpak download | 5.8 MB | Yes |
+
+Not measured yet: cold start and memory with 10 tabs (they need the real window).
+`content-visibility: auto` on the blocks gave 740 ms for 5,000 lines, but it changes the layout
+(margins do not collapse, the collapsible arrow is clipped), so it is not used.
+
 ## 10. Folder layout
 
 ```text
