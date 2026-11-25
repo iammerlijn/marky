@@ -42,6 +42,22 @@ body {
   color: var(--accent);
   text-decoration: none;
 }
+.ProseMirror a:hover {
+  text-decoration: underline;
+}
+
+.ProseMirror ::selection {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* The hint in an empty document (plugins/placeholder.ts). */
+.ProseMirror p.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--text-muted);
+  pointer-events: none;
+}
 
 .ProseMirror ul,
 .ProseMirror ol {
@@ -128,6 +144,7 @@ body {
 }
 .ProseMirror th {
   font-weight: 600;
+  background: color-mix(in srgb, var(--code-bg) 60%, transparent);
 }
 .ProseMirror td > p,
 .ProseMirror th > p {
@@ -136,6 +153,35 @@ body {
 
 .ProseMirror img {
   max-width: 100%;
+  border-radius: var(--radius);
+}
+
+/* Footnotes: a small reference number, and the definitions in small, muted text. */
+.ProseMirror sup[data-type='footnote_reference'] {
+  color: var(--accent);
+  font-size: 0.75em;
+  padding: 0 1px;
+}
+.ProseMirror sup[data-type='footnote_reference']::before {
+  content: '[';
+}
+.ProseMirror sup[data-type='footnote_reference']::after {
+  content: ']';
+}
+.ProseMirror dl[data-type='footnote_definition'] {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.ProseMirror dl[data-type='footnote_definition'] dt {
+  flex-shrink: 0;
+}
+.ProseMirror dl[data-type='footnote_definition'] dd {
+  margin: 0;
+}
+.ProseMirror dl[data-type='footnote_definition'] dd > p {
+  margin: 0;
 }
 
 /* Raw HTML, until the plugins for collapsibles and other HTML exist (design document, step 5). */
@@ -240,6 +286,8 @@ body {
 }
 .ProseMirror .code-block > pre {
   margin: 0;
+  /* Room for the language label and the copy button. */
+  padding-right: 96px;
 }
 .code-header {
   position: absolute;

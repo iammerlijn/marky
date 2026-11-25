@@ -15,6 +15,7 @@ import type { Markdown } from '../markdown/preserve'
 import { codeblock } from './plugins/codeblock'
 import { collapsible } from './plugins/collapsible'
 import { frontmatter } from './plugins/frontmatter'
+import { placeholder } from './plugins/placeholder'
 import { slash } from './plugins/slash'
 
 // Serializer settings that gave the fewest changes in the fidelity test
@@ -43,6 +44,7 @@ export async function createEditor(root: HTMLElement, text = ''): Promise<Editor
     .use(collapsible)
     .use(codeblock)
     .use(slash)
+    .use(placeholder)
     .create()
 }
 
