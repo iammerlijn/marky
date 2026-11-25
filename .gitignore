@@ -5,3 +5,6 @@ spikes/*/build/
 spikes/*/.flatpak-builder/
 test-results/
 playwright-report/
+packaging/flatpak/build/
+.flatpak-builder/
+dist-bench/
