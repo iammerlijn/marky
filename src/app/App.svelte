@@ -2,6 +2,7 @@
   // The window chrome: tab bar, the "changed on disk" bar and the empty state.
   // The logic is in tabs.ts. This component only shows it.
   import { onMount } from 'svelte'
+  import { isMac } from './keys'
   import type { Tabs } from './tabs'
 
   interface Props {
@@ -36,8 +37,9 @@
   }
 </script>
 
+<!-- On macOS the tab bar is in the title bar (tauri.conf.json): its empty part moves the window. -->
 {#if view.list.length > 0}
-  <nav class="tab-bar" aria-label="Open files">
+  <nav class="tab-bar" class:mac={isMac} aria-label="Open files" data-tauri-drag-region>
     {#each view.list as tab (tab.id)}
       <div class="tab" class:active={tab.active} title={tab.path ?? 'Not saved yet'}>
         <button class="tab-name" type="button" onclick={() => tabs.activate(tab.id)} aria-current={tab.active ? 'page' : undefined}>
@@ -63,6 +65,9 @@
 {/if}
 
 {#if view.list.length === 0}
+  {#if isMac}
+    <div class="titlebar" data-tauri-drag-region></div>
+  {/if}
   <div class="empty">
     <div class="actions">
       <button type="button" onclick={onOpen}>Open a file <kbd>{mod}</kbd> <kbd>O</kbd></button>
@@ -74,22 +79,45 @@
 <style>
   .tab-bar {
     display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 40px;
+    padding: 0 8px;
     overflow-x: auto;
     background: var(--code-bg);
-    border-bottom: 1px solid var(--border);
     font-size: 13px;
+  }
+  /* Room for the window buttons. In full screen macOS hides them (main.ts sets the class). */
+  .tab-bar.mac {
+    padding-left: 80px;
+  }
+  :global(.fullscreen) .tab-bar.mac {
+    padding-left: 8px;
+  }
+  .titlebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
   }
   .tab {
     display: flex;
     align-items: center;
     flex-shrink: 0;
     max-width: 220px;
-    border-right: 1px solid var(--border);
+    height: 28px;
+    border-radius: 8px;
     color: var(--text-muted);
+  }
+  .tab:hover {
+    background: color-mix(in srgb, var(--border) 60%, transparent);
   }
   .tab.active {
     background: var(--bg);
     color: var(--text);
+    font-weight: 600;
+    box-shadow: 0 0 0 1px var(--border);
   }
   .tab button {
     font: inherit;
@@ -99,16 +127,28 @@
     cursor: pointer;
   }
   .tab-name {
-    padding: 7px 4px 7px 12px;
+    padding: 0 2px 0 12px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* The close cross shows on hover. The dot of unsaved edits always shows. */
   .tab-close {
-    width: 24px;
-    height: 24px;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
     margin-right: 4px;
     border-radius: 4px;
+    font-weight: 400;
+    line-height: 1;
+    visibility: hidden;
+  }
+  .tab:hover .tab-close,
+  .tab-close.dirty,
+  .tab-close:focus-visible {
+    visibility: visible;
   }
   .tab-close:hover {
     background: var(--border);

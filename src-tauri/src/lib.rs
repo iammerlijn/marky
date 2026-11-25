@@ -108,9 +108,16 @@ fn unwatch(window: Window, watchers: State<Watchers>, path: String) {
 async fn new_window(app: AppHandle) -> Result<(), String> {
     static NEXT: AtomicUsize = AtomicUsize::new(2);
     let label = format!("window-{}", NEXT.fetch_add(1, Ordering::Relaxed));
-    WebviewWindowBuilder::new(&app, label, WebviewUrl::default())
+    let builder = WebviewWindowBuilder::new(&app, label, WebviewUrl::default())
         .title("Marky")
-        .inner_size(1000.0, 800.0)
+        .inner_size(1000.0, 800.0);
+    // The same title bar as the first window (tauri.conf.json): the tabs are in it.
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true)
+        .traffic_light_position(tauri::LogicalPosition::new(16.0, 20.0));
+    builder
         .build()
         .map_err(|e| e.to_string())?;
     Ok(())

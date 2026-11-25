@@ -15,7 +15,10 @@
         "title": "Marky",
         "width": 1000,
         "height": 800,
-        "resizable": true
+        "resizable": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 16, "y": 20 }
       }
     ],
     "security": {
