@@ -5,8 +5,10 @@ import {
   remarkCtx,
   remarkStringifyOptionsCtx,
   rootCtx,
+  schemaCtx,
   serializerCtx,
 } from '@milkdown/kit/core'
+import { ParserState } from '@milkdown/kit/transformer'
 import { history } from '@milkdown/kit/plugin/history'
 import { commonmark } from '@milkdown/kit/preset/commonmark'
 import { gfm, remarkGFMPlugin } from '@milkdown/kit/preset/gfm'
@@ -48,26 +50,39 @@ export async function createEditor(root: HTMLElement, text = ''): Promise<Editor
     .create()
 }
 
+type Span = { start: number; end: number }
+
+const span = (node: RootContent): Span => ({ start: node.position!.start.offset!, end: node.position!.end.offset! })
+
+// A transform can remove a block: link definitions are removed after the links are resolved.
+// Such a block has no editor node, and Marky keeps its text. Both lists are in text order.
+function withHidden(shown: Span[], raw: Span[]) {
+  const blocks = shown.map((s) => ({ ...s, hidden: false }))
+  let j = 0
+  for (const r of raw) {
+    while (j < shown.length && shown[j].end < r.end) j++
+    const inside = j < shown.length && shown[j].start <= r.start && r.end <= shown[j].end
+    if (!inside) blocks.push({ ...r, hidden: true })
+  }
+  return blocks.sort((a, b) => a.start - b.start)
+}
+
 export function markdownOf(editor: Editor): Markdown {
   const ctx = editor.ctx
   return {
     parse: (text) => ctx.get(parserCtx)(text),
     serialize: (doc) => ctx.get(serializerCtx)(doc),
-    blocks: (text) => {
+    // One parse for the editor document and the block map, because a parse of a long file is
+    // slow. The block map uses the same transforms as the editor, so that a block that a plugin
+    // makes (for example a collapsible) is one block in both.
+    read: (text) => {
       const remark = ctx.get(remarkCtx)
-      const span = (node: RootContent) => ({ start: node.position!.start.offset!, end: node.position!.end.offset! })
-      // The same transforms as the editor parser, so that a block that a plugin makes
-      // (for example a collapsible) is one block here too.
-      const shown = (remark.runSync(remark.parse(text), text) as Root).children.map(span)
-      // A transform can remove a block: link definitions are removed after the links are
-      // resolved. Such a block has no editor node, and Marky keeps its text.
-      const hidden = remark
-        .parse(text)
-        .children.map(span)
-        .filter((raw) => !shown.some((s) => raw.start >= s.start && raw.end <= s.end))
-      return [...shown.map((s) => ({ ...s, hidden: false })), ...hidden.map((s) => ({ ...s, hidden: true }))].sort(
-        (a, b) => a.start - b.start,
-      )
+      const tree = remark.parse(text)
+      const raw = tree.children.map(span)
+      const transformed = remark.runSync(tree, text) as Root
+      const state = new ParserState(ctx.get(schemaCtx))
+      state.next(transformed as never)
+      return { doc: state.toDoc(), blocks: withHidden(transformed.children.map(span), raw) }
     },
   }
 }

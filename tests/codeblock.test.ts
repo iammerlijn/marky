@@ -42,6 +42,21 @@ describe('code blocks', () => {
     expect(doc.save()).toEqual({ text, changed: false })
   })
 
+  test('an edit in a code block highlights it again, and an edit elsewhere keeps the colors', async () => {
+    doc = await open('Text.\n\n```ts\nx\n```\n')
+    const styled = () => doc.view.dom.querySelectorAll('.code-block code span[style]').length
+    await vi.waitFor(() => expect(styled()).toBeGreaterThan(0), { timeout: 5000 })
+    const before = styled()
+    const { view } = doc
+    // Type a keyword at the start of the code.
+    const code = view.state.doc.child(0).nodeSize + 1
+    view.dispatch(view.state.tr.insertText('const ', code))
+    expect(styled()).toBeGreaterThan(before)
+    const after = styled()
+    view.dispatch(view.state.tr.insertText('More ', 1))
+    expect(styled()).toBe(after)
+  })
+
   test('an unknown language shows plain code and no error', async () => {
     doc = await open('```notalanguage\nsome code\n```\n')
     await new Promise((r) => setTimeout(r, 200))

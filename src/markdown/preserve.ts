@@ -11,8 +11,9 @@ import { Mark, type Node } from '@milkdown/kit/prose/model'
 export interface Markdown {
   parse(text: string): Node
   serialize(doc: Node): string
-  // The top-level blocks as offsets in the text. A hidden block has no editor node.
-  blocks(text: string): { start: number; end: number; hidden: boolean }[]
+  // The editor document, and the top-level blocks as offsets in the text. A hidden block has
+  // no editor node.
+  read(text: string): { doc: Node; blocks: { start: number; end: number; hidden: boolean }[] }
 }
 
 interface Block {
@@ -35,8 +36,7 @@ export function load(md: Markdown, text: string): Source {
   const bom = text.startsWith('﻿') ? '﻿' : ''
   const body = text.slice(bom.length)
   const eol = body.includes('\r\n') ? '\r\n' : '\n'
-  const doc = md.parse(body)
-  const parsed = md.blocks(body)
+  const { doc, blocks: parsed } = md.read(body)
 
   const visible = parsed.filter((b) => !b.hidden).length
   // An empty document still has one empty paragraph in the editor.
@@ -153,7 +153,7 @@ export function save(md: Markdown, source: Source, doc: Node): { text: string; c
 }
 
 function joins(md: Markdown, a: string, gap: string, b: string): boolean {
-  return md.blocks(a + gap + b).length < md.blocks(a).length + md.blocks(b).length
+  return md.read(a + gap + b).blocks.length < md.read(a).blocks.length + md.read(b).blocks.length
 }
 
 // Node.eq, but the heading id is ignored. The editor makes the id from the heading text

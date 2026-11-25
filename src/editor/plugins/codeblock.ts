@@ -4,7 +4,7 @@
 // first diagram is visible.
 import { codeBlockSchema } from '@milkdown/kit/preset/commonmark'
 import type { Node } from '@milkdown/kit/prose/model'
-import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state'
+import { Plugin, PluginKey, TextSelection, type Transaction } from '@milkdown/kit/prose/state'
 import { Decoration, DecorationSet, type EditorView, type NodeView } from '@milkdown/kit/prose/view'
 import { $prose, $view } from '@milkdown/kit/utils'
 import type { HighlighterCore } from 'shiki/core'
@@ -84,30 +84,57 @@ function spans(node: Node): Span[] | null {
 const highlightKey = new PluginKey<DecorationSet>('marky-highlight')
 const waitingFor = new WeakMap<EditorView, Set<string>>()
 
+// The decorations of one code block. Starts the load of its language when it is not ready.
+function blockDecorations(node: Node, pos: number, view: EditorView | null): Decoration[] {
+  const result = spans(node)
+  if (result) return result.map((span) => Decoration.inline(pos + 1 + span.from, pos + 1 + span.to, { style: span.style }))
+  const language = String(node.attrs.language ?? '').toLowerCase()
+  // Each editor waits for the load itself: a load can start in another editor.
+  const waiting = view && (waitingFor.get(view) ?? waitingFor.set(view, new Set()).get(view)!)
+  if (language && language !== 'mermaid' && view && waiting && !waiting.has(language)) {
+    waiting.add(language)
+    void loadLanguage(language).then(async (known) => {
+      if (!known) return
+      ready = await highlighter
+      readyLanguages.add(language)
+      if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(highlightKey, true))
+    })
+  }
+  return []
+}
+
 function decorations(doc: Node, view: EditorView | null): DecorationSet {
   const list: Decoration[] = []
   doc.descendants((node, pos) => {
     if (node.type.name !== 'code_block') return true
-    const result = spans(node)
-    if (result) {
-      for (const span of result) list.push(Decoration.inline(pos + 1 + span.from, pos + 1 + span.to, { style: span.style }))
-    } else {
-      const language = String(node.attrs.language ?? '').toLowerCase()
-      // Each editor waits for the load itself: a load can start in another editor.
-      const waiting = view && (waitingFor.get(view) ?? waitingFor.set(view, new Set()).get(view)!)
-      if (language && language !== 'mermaid' && view && waiting && !waiting.has(language)) {
-        waiting.add(language)
-        void loadLanguage(language).then(async (known) => {
-          if (!known) return
-          ready = await highlighter
-          readyLanguages.add(language)
-          if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(highlightKey, true))
-        })
-      }
-    }
+    list.push(...blockDecorations(node, pos, view))
     return false
   })
   return DecorationSet.create(doc, list)
+}
+
+// After an edit, only the code blocks in the changed ranges get new decorations. A full
+// walk of a long document at each key is too slow (design document, section 9).
+function update(tr: Transaction, set: DecorationSet, view: EditorView | null): DecorationSet {
+  let next = set.map(tr.mapping, tr.doc)
+  const touched = new Map<number, Node>()
+  tr.mapping.maps.forEach((map, index) => {
+    const after = tr.mapping.slice(index + 1)
+    map.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
+      const from = Math.max(0, after.map(newStart, -1) - 1)
+      const to = Math.min(tr.doc.content.size, after.map(newEnd, 1) + 1)
+      tr.doc.nodesBetween(from, to, (node, pos) => {
+        if (node.type.name !== 'code_block') return true
+        touched.set(pos, node)
+        return false
+      })
+    })
+  })
+  for (const [pos, node] of touched) {
+    next = next.remove(next.find(pos, pos + node.nodeSize))
+    next = next.add(tr.doc, blockDecorations(node, pos, view))
+  }
+  return next
 }
 
 const highlight = $prose(() => {
@@ -117,8 +144,9 @@ const highlight = $prose(() => {
     state: {
       // A new state (a new tab) uses the view of the earlier state.
       init: (_, state) => decorations(state.doc, current),
+      // A language that finished its load: all code blocks again. An edit: only the changed blocks.
       apply: (tr, set, _old, state) =>
-        tr.docChanged || tr.getMeta(highlightKey) ? decorations(state.doc, current) : set.map(tr.mapping, tr.doc),
+        tr.getMeta(highlightKey) ? decorations(state.doc, current) : tr.docChanged ? update(tr, set, current) : set,
     },
     props: {
       decorations: (state) => highlightKey.getState(state),
