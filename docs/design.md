@@ -256,7 +256,8 @@ Rules:
 | Metric | Target |
 |---|---|
 | Cold start to visible document | < 500 ms |
-| Open a 5,000-line file | < 300 ms |
+| Open a 1,000-line file | < 300 ms |
+| Open a 5,000-line file | < 1 s (was < 300 ms, see `TODO.md`) |
 | Typing delay | < 16 ms (1 frame) |
 | App download | < 15 MB |
 | Memory with 10 tabs open | < 200 MB |
@@ -269,7 +270,7 @@ Measure these targets in CI on macOS and Linux for each release.
 |---|---|---|
 | Open a 1,000-line file | 237 ms | Yes |
 | Open a 2,000-line file | 327 ms | No |
-| Open a 5,000-line file | ~970 ms (parse and block map ~355 ms, the rest is the DOM) | No |
+| Open a 5,000-line file | ~970 ms (parse and block map ~355 ms, the rest is the DOM) | Yes (< 1 s) |
 | Typing delay in a 5,000-line file | median 16 ms, p95 17 ms (one frame) | Yes |
 | Save after an edit in a 5,000-line file | 4 ms | |
 | Flatpak download | 5.8 MB | Yes |

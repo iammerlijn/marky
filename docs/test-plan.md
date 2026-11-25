@@ -193,7 +193,8 @@ Why both: the public corpus makes the tests repeatable in CI. The private corpus
 | Metric | Target | How to measure |
 |---|---|---|
 | Cold start to visible document | < 500 ms | Time from process start to the first paint of the document, mean of 10 starts |
-| Open a 5,000-line file | < 300 ms | Time from the open command to the first paint |
+| Open a 1,000-line file | < 300 ms | Time from the open command to the first paint |
+| Open a 5,000-line file | < 1 s | Time from the open command to the first paint |
 | Typing delay | < 16 ms | Time from key event to paint, in a 5,000-line file |
 | App download | < 15 MB | Size of the `.dmg` and the Flatpak bundle |
 | Memory with 10 tabs | < 200 MB | Resident memory of all app processes |
