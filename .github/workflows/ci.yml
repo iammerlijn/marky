@@ -21,6 +21,16 @@ jobs:
       - run: cargo test
         working-directory: src-tauri
 
+  # The Rust crate has macOS-only code (the menu bar, "Open With"). Only cargo test: macOS
+  # runner minutes cost 10 times more on a private repository.
+  rust-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - run: cargo test
+        working-directory: src-tauri
+
   visual:
     runs-on: ubuntu-latest
     # The same image as `npm run test:visual`, so the approved screenshots match.
