@@ -8,6 +8,7 @@ import { Plugin, PluginKey, TextSelection, type Transaction } from '@milkdown/ki
 import { Decoration, DecorationSet, type EditorView, type NodeView } from '@milkdown/kit/prose/view'
 import { $prose, $view } from '@milkdown/kit/utils'
 import type { HighlighterCore } from 'shiki/core'
+import { changedNodes } from './changed'
 import { languageModule } from './languages'
 
 // Replaced in tests, to count the loads.
@@ -115,20 +116,7 @@ function decorations(doc: Node, view: EditorView | null): DecorationSet {
 // walk of a long document at each key is too slow (design document, section 9).
 function update(tr: Transaction, set: DecorationSet, view: EditorView | null): DecorationSet {
   let next = set.map(tr.mapping, tr.doc)
-  const touched = new Map<number, Node>()
-  tr.mapping.maps.forEach((map, index) => {
-    const after = tr.mapping.slice(index + 1)
-    map.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
-      const from = Math.max(0, after.map(newStart, -1) - 1)
-      const to = Math.min(tr.doc.content.size, after.map(newEnd, 1) + 1)
-      tr.doc.nodesBetween(from, to, (node, pos) => {
-        if (node.type.name !== 'code_block') return true
-        touched.set(pos, node)
-        return false
-      })
-    })
-  })
-  for (const [pos, node] of touched) {
+  for (const [pos, node] of changedNodes(tr, 'code_block')) {
     next = next.remove(next.find(pos, pos + node.nodeSize))
     next = next.add(tr.doc, blockDecorations(node, pos, view))
   }

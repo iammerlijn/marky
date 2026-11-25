@@ -14,6 +14,7 @@ import { commonmark } from '@milkdown/kit/preset/commonmark'
 import { gfm, remarkGFMPlugin } from '@milkdown/kit/preset/gfm'
 import type { Root, RootContent } from 'mdast'
 import type { Markdown } from '../markdown/preserve'
+import { boxDrawing } from './plugins/boxdrawing'
 import { codeblock } from './plugins/codeblock'
 import { collapsible } from './plugins/collapsible'
 import { frontmatter } from './plugins/frontmatter'
@@ -47,6 +48,7 @@ export async function createEditor(root: HTMLElement, text = ''): Promise<Editor
     .use(codeblock)
     .use(slash)
     .use(placeholder)
+    .use(boxDrawing)
     .create()
 }
 

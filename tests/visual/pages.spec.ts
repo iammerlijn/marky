@@ -24,6 +24,7 @@ const documents = [
   ['html', '/dev/preview.html?file=html.md'],
   ['frontmatter', '/dev/preview.html?file=front-matter-simple.md'],
   ['empty', '/dev/preview.html?file=empty.md'],
+  ['box-drawing', '/dev/preview.html?file=box-drawing.md'],
 ]
 
 for (const colorScheme of ['light', 'dark'] as const) {

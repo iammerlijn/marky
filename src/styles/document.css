@@ -442,3 +442,25 @@ body {
 .ProseMirror .frontmatter.ProseMirror-selectednode {
   outline: none;
 }
+
+/* Box-drawing text, for example a table copied from a terminal (plugins/boxdrawing.ts):
+   as in the source, without wrap, with a horizontal scroll. */
+.ProseMirror p.box-drawing {
+  /* A system monospace font with the box-drawing characters: the bundled JetBrains Mono has
+     none, and a fallback font for only those characters has another width, so the columns
+     would not align. */
+  font-family: ui-monospace, 'SF Mono', Menlo, 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+  font-variant-ligatures: none;
+  font-size: 13px;
+  /* The line height of the font, so that vertical lines connect as in a terminal. */
+  line-height: normal;
+  white-space: pre;
+  overflow-x: auto;
+}
+/* Milkdown shows a soft line break as a span with a space, so the lines join. Here each line
+   break starts a new line. */
+.ProseMirror p.box-drawing > span[data-type='hardbreak'][data-is-inline='true'] {
+  display: block;
+  height: 0;
+  overflow: hidden;
+}
