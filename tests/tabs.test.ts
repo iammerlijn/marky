@@ -94,6 +94,19 @@ describe('tabs', () => {
     expect([...backend.watched]).toEqual(['/a.md', '/b.md'])
   })
 
+  test('when the watch fails, the file does not open, and the next open tries again', async () => {
+    const watch = backend.watch.bind(backend)
+    backend.watch = async () => {
+      throw new Error('watch failed')
+    }
+    await expect(tabs.open('/a.md')).rejects.toThrow('watch failed')
+    expect(tabs.tabs).toHaveLength(0)
+    backend.watch = watch
+    await tabs.open('/a.md')
+    expect(tabs.tabs).toHaveLength(1)
+    expect(backend.watched.has('/a.md')).toBe(true)
+  })
+
   test('open a file that is already open: Marky selects its tab', async () => {
     await tabs.open('/a.md')
     await tabs.open('/b.md')

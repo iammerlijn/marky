@@ -105,12 +105,13 @@ export class Tabs {
     const existing = this.tabs.find((t) => t.path === path)
     if (existing) return this.activate(existing.id)
     const read = await this.read(path)
+    // A tab without a watch does not show changes by other apps. Then the file does not open.
+    await this.backend.watch(path)
     const raw = read.rawOnly ? read.saved : null
     const banner = read.rawOnly ? 'raw-only' : null
     const tab: Tab = { id: this.nextId++, path, ...read, dirty: false, scroll: 0, banner, rawText: raw, rawStart: raw }
     this.tabs.push(tab)
     this.activate(tab.id)
-    await this.backend.watch(path)
   }
 
   newTab() {
