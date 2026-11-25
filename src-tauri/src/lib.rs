@@ -5,6 +5,8 @@ mod settings;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod menu;
 mod watcher;
+#[cfg(target_os = "macos")]
+mod terminate;
 
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
@@ -162,6 +164,9 @@ pub fn run() {
             let loaded = settings::load(&path);
             #[cfg(target_os = "macos")]
             app.set_menu(menu::build(app.handle(), loaded.warn_before_quit)?)?;
+            // Quit from the Dock uses the same path as Cmd+Q.
+            #[cfg(target_os = "macos")]
+            terminate::install(app.handle());
             app.manage(AppSettings { path, settings: Mutex::new(loaded) });
             Ok(())
         })
