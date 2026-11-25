@@ -85,10 +85,9 @@ export function save(md: Markdown, source: Source, doc: Node): { text: string; c
   // place[j] and origin[j] for current node j: origin is the block whose original text it writes.
   const place = new Array<number>(current.length).fill(-1)
   const origin = new Array<number>(current.length).fill(-1)
-  const same = (j: number, i: number) => sameContent(current[j], blocks[i].node!)
 
   const clean = new Set<number>()
-  for (const [j, v] of commonSubsequence(current.length, visible.length, (j, v) => same(j, visible[v]))) {
+  for (const [j, v] of matchNodes(current, visible.map((i) => blocks[i].node!))) {
     place[j] = origin[j] = visible[v]
     clean.add(visible[v])
   }
@@ -96,7 +95,8 @@ export function save(md: Markdown, source: Source, doc: Node): { text: string; c
   // Moved blocks: equal to an original block, but not at the same place.
   for (let j = 0; j < current.length; j++) {
     if (origin[j] >= 0) continue
-    const i = visible.find((i) => !used.has(i) && same(j, i))
+    const free = visible.filter((i) => !used.has(i))
+    const i = free.find((i) => current[j] === blocks[i].node) ?? free.find((i) => sameContent(current[j], blocks[i].node!))
     if (i !== undefined) {
       origin[j] = i
       used.add(i)
@@ -191,7 +191,8 @@ function serializeTable(md: Markdown, doc: Node, table: Node, before: Block, eol
   const old = before.node!
   if (lines.length !== table.childCount + 1 || original.length !== old.childCount + 1) return lines.join(eol)
   const line = (row: number) => (row === 0 ? 0 : row + 1)
-  const pairs = commonSubsequence(table.childCount, old.childCount, (j, i) => sameContent(table.child(j), old.child(i)))
+  const rows = (node: Node) => Array.from({ length: node.childCount }, (_, i) => node.child(i))
+  const pairs = matchNodes(rows(table), rows(old))
   for (const [j, i] of pairs) lines[line(j)] = original[line(i)]
   if (sameColumns(table.child(0), old.child(0))) lines[1] = original[1]
   return lines.join(eol)
@@ -202,6 +203,26 @@ function sameColumns(a: Node, b: Node): boolean {
   if (a.childCount !== b.childCount) return false
   for (let i = 0; i < a.childCount; i++) if (a.child(i).attrs.alignment !== b.child(i).attrs.alignment) return false
   return true
+}
+
+// Pairs of equal nodes, as [index in a, index in b]. An untouched block is the same node
+// object as its original, so the same objects pair first: two equal blocks with a different
+// original text then keep their own text. Between those pairs, equal nodes pair, for
+// example a block after an undo.
+function matchNodes(a: readonly Node[], b: readonly Node[]): [number, number][] {
+  const pairs: [number, number][] = []
+  let i0 = 0
+  let j0 = 0
+  const anchors = commonSubsequence(a.length, b.length, (i, j) => a[i] === b[j])
+  for (const [i, j] of [...anchors, [a.length, b.length]]) {
+    for (const [x, y] of commonSubsequence(i - i0, j - j0, (x, y) => sameContent(a[i0 + x], b[j0 + y]))) {
+      pairs.push([i0 + x, j0 + y])
+    }
+    if (i < a.length) pairs.push([i, j])
+    i0 = i + 1
+    j0 = j + 1
+  }
+  return pairs
 }
 
 // Longest common subsequence of a and b, as pairs [index in a, index in b].

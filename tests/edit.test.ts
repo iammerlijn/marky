@@ -160,6 +160,13 @@ Last paragraph.
     expect(doc.save().text).toBe('# Title\n\nText.\n\nNew')
   })
 
+  test('delete one of two equal blocks with different syntax: the other block keeps its own text', async () => {
+    doc = await open('- same\n\n* same\n')
+    const { view } = doc
+    view.dispatch(view.state.tr.delete(0, view.state.doc.child(0).nodeSize))
+    expect(doc.save().text).toBe('* same\n')
+  })
+
   test('edit, then undo: the file does not change', async () => {
     doc = await open(original)
     const { view } = doc
@@ -363,5 +370,14 @@ Text after.
     const { view } = doc
     view.dispatch(view.state.tr.insertText('x', textPos(view, '3') + 1))
     expect(doc.save().text).toBe('| a | b |\r\n|---|---|\r\n| 1 | 2 |\r\n| 3x | 4 |\r\n')
+  })
+
+  test('delete one of two equal rows with different spacing: the other row keeps its own line', async () => {
+    const source = '| a |\n|---|\n|  x |\n| x  |\n'
+    doc = await open(source)
+    const { view } = doc
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, textPos(view, 'x'))))
+    deleteRow(view.state, view.dispatch)
+    expect(doc.save().text).toBe('| a |\n|---|\n| x  |\n')
   })
 })
