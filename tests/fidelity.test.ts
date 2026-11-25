@@ -6,11 +6,19 @@ import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { open } from './helpers'
 
+// Skips hidden folders, node_modules and folders that cannot be read (for example build caches).
 function markdownFiles(dir: string): string[] {
-  return readdirSync(dir, { recursive: true, withFileTypes: true })
-    .filter((e) => e.isFile() && e.name.endsWith('.md'))
-    .map((e) => join(e.parentPath, e.name))
-    .filter((p) => !p.includes('/node_modules/') && !p.includes('/.git/'))
+  let entries
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  return entries
+    .flatMap((e) => {
+      if (e.isDirectory()) return e.name.startsWith('.') || e.name === 'node_modules' ? [] : markdownFiles(join(dir, e.name))
+      return e.isFile() && e.name.endsWith('.md') ? [join(dir, e.name)] : []
+    })
     .sort()
 }
 
