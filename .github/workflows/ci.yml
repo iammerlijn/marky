@@ -7,15 +7,33 @@ on:
     branches: [main]
   pull_request:
 
+# A new commit on a pull request stops the run of the previous commit. Runs on main all finish.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          filter: blob:none
       - uses: jdx/mise-action@v5
       - name: Install the system libraries of Tauri
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - run: npm ci
+      # Only main saves the caches. A pull request reads the cache of main.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - id: node-modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json', 'mise.toml') }}
+      - if: steps.node-modules.outputs.cache-hit != 'true'
+        run: npm ci
       - run: npm run typecheck
       - run: npm test
       - run: cargo test
@@ -27,7 +45,13 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          filter: blob:none
       - uses: jdx/mise-action@v5
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo test
         working-directory: src-tauri
 
@@ -37,7 +61,16 @@ jobs:
     container: mcr.microsoft.com/playwright:v1.65.1-noble
     steps:
       - uses: actions/checkout@v7
-      - run: npm ci
+        with:
+          filter: blob:none
+      # The Node.js of the image, not of mise: a different key from the other jobs.
+      - id: node-modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-playwright-v1.65.1-${{ hashFiles('package-lock.json') }}
+      - if: steps.node-modules.outputs.cache-hit != 'true'
+        run: npm ci
       - run: npx playwright test
         env:
           HOME: /root
@@ -52,12 +85,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          filter: blob:none
       - uses: jdx/mise-action@v5
       - name: Install the system libraries, WebKitWebDriver and a virtual display
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf webkitgtk-webdriver xvfb dbus
+      # The cache also keeps ~/.cargo/bin, so cargo install skips tauri-driver when it is there.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo install tauri-driver --locked
       - run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-      - run: npm ci
+      - id: node-modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json', 'mise.toml') }}
+      - if: steps.node-modules.outputs.cache-hit != 'true'
+        run: npm ci
       - run: npx tauri build --debug --no-bundle
       # The single-instance plugin needs a D-Bus session.
       - run: dbus-run-session -- xvfb-run --auto-servernum npm run test:e2e
@@ -73,10 +119,22 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          filter: blob:none
       - uses: jdx/mise-action@v5
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - run: npm ci
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - id: node-modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json', 'mise.toml') }}
+      - if: steps.node-modules.outputs.cache-hit != 'true'
+        run: npm ci
       - run: npx tauri build --bundles ${{ matrix.bundles }}
       - uses: actions/upload-artifact@v7
         with:
