@@ -9,6 +9,8 @@ import '../styles/outline.css'
 import { editorViewCtx } from '@milkdown/kit/core'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { homeDir } from '@tauri-apps/api/path'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message, open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { mount } from 'svelte'
@@ -17,6 +19,7 @@ import App from './App.svelte'
 import { onFileChanged, onOpenFiles, tauriBackend } from './backend'
 import { modLabel, shortcut, type Action } from './keys'
 import { RawEditor } from './raw'
+import { addRecent, recentFiles, removeRecent } from './recent'
 import { Tabs, type CloseAnswer, type Tab } from './tabs'
 
 // For dev/measure-app.sh (see bench_mark at the end of this file).
@@ -74,17 +77,32 @@ async function openPaths(paths: string[]) {
   view.focus()
 }
 
+// A file from the Recent list that cannot open now goes out of the list.
+async function openRecent(path: string) {
+  try {
+    await tabs.open(path)
+    view.focus()
+  } catch (error) {
+    removeRecent(path)
+    await message(error instanceof Error ? error.message : String(error), { kind: 'error' })
+  }
+}
+
 async function chooseFile() {
   const path = await openDialog({ filters: markdownFiles })
   if (path) await openPaths([path])
 }
 
+const home = await homeDir().catch(() => null)
 mount(App, {
   target: document.getElementById('chrome')!,
   props: {
     tabs,
     mod: modLabel(),
+    home,
+    recent: recentFiles,
     onOpen: chooseFile,
+    onOpenRecent: (path: string) => void openRecent(path),
     onNew: () => {
       tabs.newTab()
       view.focus()
@@ -109,6 +127,8 @@ const raw = new RawEditor(rawRoot, (text) => {
   checkDirty()
 })
 const rawTabs = new Set<number>()
+// A file that a tab shows for the first time goes to the top of the Recent list.
+const known = new Map<number, string>()
 
 // Window title, the visible editor and the session for the next start.
 const SESSION = 'marky.session'
@@ -118,6 +138,12 @@ tabs.subscribe(() => {
     if (!tabs.tabs.some((t) => t.id === id && t.rawText !== null)) {
       raw.forget(id)
       rawTabs.delete(id)
+    }
+  }
+  for (const tab of tabs.tabs) {
+    if (tab.path !== null && known.get(tab.id) !== tab.path) {
+      known.set(tab.id, tab.path)
+      addRecent(tab.path)
     }
   }
   const inRaw = active?.rawText != null
@@ -204,6 +230,12 @@ await appWindow.onCloseRequested(async (event) => {
     }
   }
   await appWindow.destroy()
+})
+
+// A markdown file that is dropped on the window opens in a tab.
+const isMarkdown = (path: string) => markdownFiles[0].extensions.some((ext) => path.toLowerCase().endsWith(`.${ext}`))
+await getCurrentWebview().onDragDropEvent(({ payload }) => {
+  if (payload.type === 'drop') void openPaths(payload.paths.filter(isMarkdown))
 })
 
 await onFileChanged((path, version) => void run(() => tabs.changed(path, version)))

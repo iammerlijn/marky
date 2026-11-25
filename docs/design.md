@@ -230,6 +230,8 @@ Typing markdown syntax converts it immediately: `# ` makes a heading, `- ` makes
 - Linux: `Ctrl+Q` quits through the same path, so each window asks about unsaved changes. It does not ask "Quit Marky?" first, and Linux has no settings menu. Reasons: GNOME apps quit on `Ctrl+Q` without a question, the next start reopens the tabs, and with no question there is no setting to show. Add a settings place when Marky has a setting that Linux needs.
 - A new tab is "Untitled". Its first save opens a Save As dialog. A new file ends with a newline.
 - Each window has its own tabs. Files from the command line and from "open with" open in the focused window. Only the first window restores the session.
+- A window with no tabs shows the welcome screen: the app icon, Open file, New file and the 8 recent files (in `localStorage`, shared by all windows). A recent file that does not open goes out of the list.
+- Drop a markdown file (`.md`, `.markdown`, `.mdx`, `.txt`) on the window to open it in a tab.
 - macOS has a menu bar with the same File actions, and Cut, Copy, Paste and Select All. The default Tauri menu is not used, because its `Cmd+W` closes the window.
 
 ## 8. Look and feel

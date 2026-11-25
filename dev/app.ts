@@ -56,7 +56,17 @@ mount(App, {
   props: {
     tabs,
     mod: modLabel(),
+    home: '/home/user',
+    recent: () => {
+      const day = 86_400_000
+      return [
+        { path: '/home/user/notes/release-plan.md', at: Date.now() },
+        { path: '/home/user/code/marky/README.md', at: Date.now() - day },
+        { path: '/home/user/notes/tables.md', at: new Date(2026, 10, 12).getTime() },
+      ]
+    },
     onOpen: () => {},
+    onOpenRecent: (path: string) => void tabs.open(path),
     onNew: () => tabs.newTab(),
     onClose: (id: number) => tabs.close(id, async () => 'discard'),
     onKeepMine: (id: number) => tabs.keepMine(id),
