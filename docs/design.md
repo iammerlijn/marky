@@ -303,6 +303,19 @@ Each tab costs only about 1.5 MB. The memory is mostly the base cost of WebKitGT
 `content-visibility: auto` on the blocks gave 740 ms for 5,000 lines, but it changes the layout
 (margins do not collapse, the collapsible arrow is clipped), so it is not used.
 
+**Measured in the release app after [issue 4](https://github.com/iammerlijn/marky/issues/4) (2026-11-25, macOS, the `MARKY_BENCH` marks of `dev/measure-app.sh`, 10 starts with `dev/sample.md`):**
+
+The raw editor (CodeMirror) loads the first time raw mode opens, so the main script is 675 kB (was 1,184 kB).
+The window starts hidden and shows when the tabs are in the page, so no empty window shows.
+
+| Metric | Before | After |
+|---|---|---|
+| Cold start: process start to the page script | ~370 ms | ~345 ms |
+| Cold start: process start to the open document, before the paint | ~408 ms | ~380 ms (351–395 ms) |
+| Cold start to the painted document | Not known | Not known: the screen was locked, so no frames came |
+
+Measure Linux again with `dev/measure-app.sh`.
+
 ## 10. Folder layout
 
 ```text
