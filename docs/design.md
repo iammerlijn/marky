@@ -265,7 +265,7 @@ Rules:
 |---|---|
 | Cold start to visible document | < 500 ms |
 | Open a 1,000-line file | < 300 ms |
-| Open a 5,000-line file | < 1 s (was < 300 ms, see `TODO.md`) |
+| Open a 5,000-line file | < 1 s (was < 300 ms, see [issue 3](https://github.com/iammerlijn/marky/issues/3)) |
 | Typing delay | < 16 ms (1 frame) |
 | App download | < 15 MB |
 | Memory with 10 tabs open | < 200 MB |
