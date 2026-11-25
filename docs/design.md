@@ -229,9 +229,8 @@ Typing markdown syntax converts it immediately: `# ` makes a heading, `- ` makes
 - macOS: the setting "Warn Before Quitting" (app menu, default on) asks before `Cmd+Q` quits. Then each window closes through its normal close path, so each window asks about unsaved changes. The setting is in `settings.json` in the app config folder: the backend builds the menu at start, before the page loads.
 - A new tab is "Untitled". Its first save opens a Save As dialog. A new file ends with a newline.
 - Each window has its own tabs. Files from the command line and from "open with" open in the focused window. Only the first window restores the session.
-- A window with no tabs shows the welcome screen: Open file, New file and the 8 recent files (in `localStorage`, shared by all windows). A recent file that does not open goes out of the list.
+- A window with no tabs shows the welcome screen: the app icon, Open file, New file and the 8 recent files (in `localStorage`, shared by all windows). A recent file that does not open goes out of the list.
 - Drop a markdown file (`.md`, `.markdown`, `.mdx`, `.txt`) on the window to open it in a tab.
-- The status bar at the bottom shows the path of the active tab (with `~` for the home folder) and if the file is saved. The code button in the title bar turns raw mode on and off.
 - macOS has a menu bar with the same File actions, and Cut, Copy, Paste and Select All. The default Tauri menu is not used, because its `Cmd+W` closes the window.
 
 ## 8. Look and feel
@@ -243,21 +242,19 @@ All values are CSS variables in `src/styles/tokens.css`. The values below are st
 | Token | Light | Dark |
 |---|---|---|
 | `--bg` | `#ffffff` | `#17181b` |
-| `--surface` (title bar, status bar) | `#f7f7f8` | `#1d1e22` |
 | `--text` | `#2a2b2f` | `#d6d7da` |
-| `--text-muted` | `#6b6f76` | `#8b8e95` |
-| `--border` | `#e6e7ea` | `#2a2c31` |
-| `--code-bg` | `#f1f2f4` | `#26272c` |
+| `--text-muted` | `#6b6f76` | `#8a8f98` |
+| `--border` | `#e6e7ea` | `#2b2d31` |
+| `--code-bg` | `#f4f5f7` | `#212226` |
 | `--accent` | `#5e6ad2` | `#7c85e0` |
-| `--accent-text` (on `--tint`) | `#4f5bc4` | `#a3a9ee` |
 
 | Token | Value |
 |---|---|
 | `--font-text` | Inter, system-ui, sans-serif |
 | `--font-mono` | "JetBrains Mono", ui-monospace, monospace |
-| `--size-body` | 16px |
-| `--line-height` | 1.7 |
-| `--size-h1` / `h2` / `h3` | 32px / 20px / 17px, weight 600 |
+| `--size-body` | 15px |
+| `--line-height` | 1.6 |
+| `--size-h1` / `h2` / `h3` | 24px / 19px / 16px, weight 600 |
 | `--column-width` | 720px (tables can be wider, with scroll) |
 | `--radius` | 6px |
 

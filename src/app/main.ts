@@ -103,7 +103,6 @@ mount(App, {
     recent: recentFiles,
     onOpen: chooseFile,
     onOpenRecent: (path: string) => void openRecent(path),
-    onToggleSource: () => toggleRaw(),
     onNew: () => {
       tabs.newTab()
       view.focus()

@@ -67,7 +67,6 @@ mount(App, {
     },
     onOpen: () => {},
     onOpenRecent: (path: string) => void tabs.open(path),
-    onToggleSource: () => (tabs.active?.rawText == null ? tabs.enterRaw() : tabs.leaveRaw()),
     onNew: () => tabs.newTab(),
     onClose: (id: number) => tabs.close(id, async () => 'discard'),
     onKeepMine: (id: number) => tabs.keepMine(id),

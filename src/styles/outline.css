@@ -10,75 +10,69 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 12px;
-  max-height: calc(100vh - 148px);
+  gap: 6px;
+  max-height: calc(100vh - 120px);
   overflow: hidden;
-  padding: 8px 12px 8px 18px;
+  padding: 8px 12px 8px 16px;
   background: none;
   border: none;
   border-radius: var(--radius);
   cursor: pointer;
 }
-/* A heading of the top level is 18 px. Deeper headings are shorter and end at the same place. */
 .outline-dash {
   flex-shrink: 0;
-  width: max(6px, calc(18px - var(--depth) * 6px));
-  height: 3px;
-  margin-left: calc(18px - max(6px, calc(18px - var(--depth) * 6px)));
-  border-radius: 2px;
-  background: var(--dash);
+  width: calc(16px - var(--depth) * 2px);
+  height: 2px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--text-muted) 40%, transparent);
 }
 .outline-dash.is-current {
-  background: var(--accent);
+  width: calc(20px - var(--depth) * 2px);
+  background: var(--text);
 }
 .outline-panel {
   display: none;
   position: absolute;
   top: 0;
-  left: 10px;
-  width: 256px;
-  box-sizing: border-box;
-  max-height: calc(100vh - 132px);
+  left: 8px;
+  width: 260px;
+  max-height: calc(100vh - 104px);
   overflow-y: auto;
-  padding: 8px;
-  background: var(--panel-bg);
-  border-radius: 10px;
-  box-shadow: var(--panel-shadow);
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   font-size: 13px;
 }
 .outline.is-open .outline-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: block;
 }
 .outline-item {
   display: block;
   width: 100%;
-  flex-shrink: 0;
-  padding: 7px 10px 7px calc(10px + var(--depth) * 12px);
+  padding: 4px 8px 4px calc(8px + var(--depth) * 12px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
   font: inherit;
-  color: var(--text);
+  color: var(--text-muted);
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
 }
 .outline-item[data-depth='0'] {
-  font-weight: 600;
+  color: var(--text);
+}
+.outline-item[aria-current] {
+  color: var(--accent);
 }
 .outline-item:hover,
 .outline-item:focus-visible {
-  background: var(--hover-bg);
+  background: var(--code-bg);
   outline: none;
-}
-.outline-item[aria-current] {
-  color: var(--accent-text);
-  font-weight: 600;
-  background: var(--tint);
 }
 .outline-rail:focus-visible {
   outline: 2px solid var(--accent);
