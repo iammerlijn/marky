@@ -1,9 +1,9 @@
 // Open and save (design document, section 4.1).
 use serde::Serialize;
 use std::fs::{self, File};
+use std::hash::{DefaultHasher, Hasher};
 use std::io::{ErrorKind, Write};
 use std::path::Path;
-use std::time::UNIX_EPOCH;
 
 #[derive(Debug, Serialize, PartialEq)]
 pub struct Opened {
@@ -19,16 +19,23 @@ pub enum SaveError {
     Io(String),
 }
 
-// The modification time and the size of the file. When the version changes, the file changed on disk.
+// A hash of the content of the file. When the version changes, the file changed on disk.
+// The modification time is not used: other apps can keep it, and some file systems store it
+// in full seconds. The hash is the same for each run of the same build of Marky.
+pub fn version_of(bytes: &[u8]) -> String {
+    let mut hasher = DefaultHasher::new();
+    hasher.write(bytes);
+    format!("{:016x}-{}", hasher.finish(), bytes.len())
+}
+
 pub fn version(path: &Path) -> std::io::Result<String> {
-    let metadata = fs::metadata(path)?;
-    let modified = metadata.modified()?.duration_since(UNIX_EPOCH).unwrap_or_default();
-    Ok(format!("{}.{:09}-{}", modified.as_secs(), modified.subsec_nanos(), metadata.len()))
+    fs::read(path).map(|bytes| version_of(&bytes))
 }
 
 pub fn open(path: &Path) -> Result<Opened, String> {
     let bytes = fs::read(path).map_err(|e| e.to_string())?;
-    let version = version(path).map_err(|e| e.to_string())?;
+    // The version of the bytes that were read, not of the file a moment later.
+    let version = version_of(&bytes);
     let text = String::from_utf8(bytes).map_err(|_| "The file is not UTF-8 text.".to_string())?;
     Ok(Opened { text, version })
 }
@@ -102,6 +109,18 @@ mod tests {
         let opened = open(&path).unwrap();
         assert_eq!(opened.text, "# Title\n");
         assert_eq!(opened.version, version(&path).unwrap());
+    }
+
+    #[test]
+    fn save_stops_with_a_conflict_when_another_app_keeps_the_size_and_the_modification_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = file(&dir, "a.md", "aaaa");
+        let opened = open(&path).unwrap();
+        let modified = fs::metadata(&path).unwrap().modified().unwrap();
+        fs::write(&path, "bbbb").unwrap();
+        File::options().write(true).open(&path).unwrap().set_modified(modified).unwrap();
+        assert_eq!(save(&path, "mine", &opened.version), Err(SaveError::Conflict));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "bbbb");
     }
 
     #[test]

@@ -156,7 +156,7 @@ Why both: the public corpus makes the tests repeatable in CI. The private corpus
 | Save when the disk is full | Marky shows an error. The original file does not change. |
 | Another app changes the file, and the tab has no unsaved edits | The tab reloads and keeps the scroll position. |
 | Another app changes the file, and the tab has unsaved edits | Marky shows the "changed on disk" bar. It does not overwrite anything. |
-| Another app changes the file between the last read and the save | The save stops with a conflict (modification time check). |
+| Another app changes the file between the last read and the save | The save stops with a conflict (content hash check). |
 | Marky saves the file itself | The file watcher does not show a "changed on disk" bar. |
 | The file is deleted or renamed while it is open | Marky shows this in the tab. It does not create the file again without a question. |
 | A git checkout changes 50 open files at the same time | All tabs reload. No crash, no lost edits. |

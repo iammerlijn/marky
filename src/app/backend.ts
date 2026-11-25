@@ -4,7 +4,7 @@ import { listen } from '@tauri-apps/api/event'
 
 export interface Opened {
   text: string
-  // The modification time and size on disk. See files.rs.
+  // A hash of the content on disk. See files.rs.
   version: string
 }
 

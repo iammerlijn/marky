@@ -97,8 +97,8 @@ The backend is small. It does only what the webview cannot do.
 
 | Command | Function |
 |---|---|
-| `open_file(path)` | Read the file. Return the text and the modification time. |
-| `save_file(path, text, expected_mtime)` | Write to a temporary file, then rename it (atomic write). If the file on disk changed after `expected_mtime`, stop and return a conflict. |
+| `open_file(path)` | Read the file. Return the text and the version (a hash of the bytes that were read). |
+| `save_file(path, text, expected_version)` | Write to a temporary file, then rename it (atomic write). If the file on disk does not have `expected_version`, stop and return a conflict. |
 | `watch(path)` / `unwatch(path)` | Send an event when the file changes on disk. Ignore the events that Marky's own saves cause. For a document portal path (`/run/user/<uid>/doc/...`), use `notify::PollWatcher` (section 4.3). For other paths, use the inotify watcher. |
 | CLI and "open with" | `marky notes.md` and the file manager open the file in a new tab of the open window. |
 
@@ -109,7 +109,7 @@ The backend is small. It does only what the webview cannot do.
 - Hover over the rail to open a panel over the document, with one line for each heading. A click scrolls to the heading and puts the cursor there. The panel closes a short time after the mouse leaves it. With the keyboard: `Tab` to the rail, `Enter` opens the panel, arrow keys move, `Enter` goes to the heading, `Escape` closes. There is no shortcut.
 - The list comes from the editor state of the active tab: again after a tab change, and a short time after an edit. There is no rail when the document has no headings, and in raw mode.
 - There is one Milkdown editor view. Each tab keeps its own ProseMirror `EditorState`. When you change tabs, the app swaps the state into the view.
-- Each tab stores: the path, the original text, the block map (section 5), the dirty flag and the modification time on disk.
+- Each tab stores: the path, the original text, the block map (section 5), the dirty flag and the version on disk.
 
 ### 4.3 Flatpak file access (step 2, done)
 
