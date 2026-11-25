@@ -36,10 +36,11 @@ export function onFileChanged(handler: (path: string, version: string | null) =>
 // Files from the command line, from "open with" and from a second `marky` command.
 // The backend sends `open-files` to the focused window. Only the first window takes the
 // files of the command line at start.
-export function onOpenFiles(handler: (paths: string[]) => void, takeNow: boolean) {
+// The returned promise resolves after the files of the command line are open.
+export function onOpenFiles(handler: (paths: string[]) => Promise<void>, takeNow: boolean) {
   const take = async () => {
     const paths = await invoke<string[]>('take_pending_files')
-    if (paths.length > 0) handler(paths)
+    if (paths.length > 0) await handler(paths)
   }
   return listen('open-files', take).then(async (unlisten) => {
     if (takeNow) await take()

@@ -18,6 +18,8 @@ import { modLabel, shortcut, type Action } from './keys'
 import { RawEditor } from './raw'
 import { Tabs, type CloseAnswer, type Tab } from './tabs'
 
+// For dev/measure-app.sh (see bench_mark at the end of this file).
+void invoke('bench_mark', { label: 'script' })
 const appWindow = getCurrentWindow()
 // The first window restores and saves the session and takes the files from the command line.
 // A window from Cmd/Ctrl+N starts empty.
@@ -25,6 +27,7 @@ const isFirstWindow = appWindow.label === 'main'
 const editorRoot = document.getElementById('editor')!
 const editor = await createEditor(editorRoot)
 const view = editor.ctx.get(editorViewCtx)
+void invoke('bench_mark', { label: 'editor' })
 const markdownFiles = [{ name: 'Markdown', extensions: ['md', 'markdown', 'mdx', 'txt'] }]
 const tabs = new Tabs(
   view,
@@ -195,4 +198,9 @@ if (isFirstWindow) try {
   // No session.
 }
 
-await onOpenFiles((paths) => void openPaths(paths), isFirstWindow)
+await onOpenFiles(openPaths, isFirstWindow)
+void invoke('bench_mark', { label: 'opened' })
+
+// For dev/measure-app.sh: the time from the process start to the painted files. The backend
+// prints it only when MARKY_BENCH is set.
+requestAnimationFrame(() => requestAnimationFrame(() => void invoke('bench_mark', { label: 'files-open' })))

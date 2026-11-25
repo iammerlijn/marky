@@ -6,7 +6,8 @@ mod menu;
 mod watcher;
 
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window};
 use watcher::Watchers;
@@ -72,6 +73,17 @@ async fn new_window(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+static STARTED: OnceLock<Instant> = OnceLock::new();
+
+// For dev/measure-app.sh: prints the time since the process start when MARKY_BENCH is set.
+#[tauri::command]
+fn bench_mark(label: String) {
+    if std::env::var_os("MARKY_BENCH").is_some() {
+        let ms = STARTED.get().map_or(0, |start| start.elapsed().as_millis());
+        eprintln!("marky-bench {label} {ms}");
+    }
+}
+
 #[tauri::command]
 fn take_pending_files(pending: State<PendingFiles>) -> Vec<String> {
     std::mem::take(&mut *pending.0.lock().unwrap())
@@ -79,6 +91,7 @@ fn take_pending_files(pending: State<PendingFiles>) -> Vec<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    STARTED.get_or_init(Instant::now);
     let cwd = std::env::current_dir().unwrap_or_default();
     let initial = cli::files(std::env::args(), &cwd);
     tauri::Builder::default()
@@ -100,7 +113,7 @@ pub fn run() {
         })
         .manage(Watchers::default())
         .manage(PendingFiles(Mutex::new(initial)))
-        .invoke_handler(tauri::generate_handler![open_file, save_file, create_file, watch, unwatch, new_window, take_pending_files])
+        .invoke_handler(tauri::generate_handler![open_file, save_file, create_file, watch, unwatch, new_window, take_pending_files, bench_mark])
         .build(tauri::generate_context!())
         .expect("error while building Marky")
         .run(|_app, _event| {
