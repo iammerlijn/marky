@@ -105,12 +105,13 @@ export class Tabs {
     const existing = this.tabs.find((t) => t.path === path)
     if (existing) return this.activate(existing.id)
     const read = await this.read(path)
+    // A tab without a watch does not show changes by other apps. Then the file does not open.
+    await this.backend.watch(path)
     const raw = read.rawOnly ? read.saved : null
     const banner = read.rawOnly ? 'raw-only' : null
     const tab: Tab = { id: this.nextId++, path, ...read, dirty: false, scroll: 0, banner, rawText: raw, rawStart: raw }
     this.tabs.push(tab)
     this.activate(tab.id)
-    await this.backend.watch(path)
   }
 
   newTab() {
@@ -180,7 +181,8 @@ export class Tabs {
     // The saved text is the new original: the next save keeps all its blocks.
     tab.source = this.tryLoad(result.text) ?? tab.source
     tab.saved = result.text
-    tab.dirty = false
+    // An edit during the save is not in the file.
+    tab.dirty = this.output(tab).changed
     tab.banner = tab.rawOnly ? 'raw-only' : null
     this.emit()
     return true
@@ -195,7 +197,7 @@ export class Tabs {
     tab.path = path
     tab.source = load(this.md, text)
     tab.saved = text
-    tab.dirty = false
+    tab.dirty = this.output(tab).changed
     this.emit()
     await this.backend.watch(path)
     return true
@@ -227,16 +229,23 @@ export class Tabs {
     if (version === null) {
       tab.banner = 'deleted'
     } else if (!this.output(tab).changed) {
-      await this.reload(tab)
+      await this.reload(tab, true)
     } else {
       tab.banner = 'changed'
     }
     this.emit()
   }
 
-  private async reload(tab: Tab) {
+  // With keepEdits, an edit while the file is read stays: then the tab shows the bar.
+  private async reload(tab: Tab, keepEdits = false) {
     if (tab.path === null) return
+    const [doc, raw] = [this.stateOf(tab).doc, tab.rawText]
     const { source, saved, version, state, rawOnly } = await this.read(tab.path)
+    if (keepEdits && (this.stateOf(tab).doc !== doc || tab.rawText !== raw)) {
+      tab.banner = 'changed'
+      this.emit()
+      return
+    }
     Object.assign(tab, { source, saved, version, rawOnly, dirty: false, banner: rawOnly ? 'raw-only' : null })
     if (tab.rawText !== null || rawOnly) tab.rawText = tab.rawStart = saved
     if (tab === this.active) {

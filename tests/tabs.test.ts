@@ -94,6 +94,19 @@ describe('tabs', () => {
     expect([...backend.watched]).toEqual(['/a.md', '/b.md'])
   })
 
+  test('when the watch fails, the file does not open, and the next open tries again', async () => {
+    const watch = backend.watch.bind(backend)
+    backend.watch = async () => {
+      throw new Error('watch failed')
+    }
+    await expect(tabs.open('/a.md')).rejects.toThrow('watch failed')
+    expect(tabs.tabs).toHaveLength(0)
+    backend.watch = watch
+    await tabs.open('/a.md')
+    expect(tabs.tabs).toHaveLength(1)
+    expect(backend.watched.has('/a.md')).toBe(true)
+  })
+
   test('open a file that is already open: Marky selects its tab', async () => {
     await tabs.open('/a.md')
     await tabs.open('/b.md')
@@ -158,6 +171,20 @@ describe('tabs', () => {
     expect(tab('/a.md').dirty).toBe(false)
     undo(view.state, view.dispatch)
     tabs.refreshDirty()
+    expect(tab('/a.md').dirty).toBe(true)
+  })
+
+  test('an edit during a save keeps the tab dirty', async () => {
+    await tabs.open('/a.md')
+    type('first ')
+    const save = backend.save.bind(backend)
+    let finish = () => {}
+    backend.save = (...args) => new Promise((resolve) => (finish = () => resolve(save(...args))))
+    const saved = tabs.save()
+    type('second ')
+    finish()
+    expect(await saved).toBe(true)
+    expect(backend.files.get('/a.md')!.text).not.toContain('second')
     expect(tab('/a.md').dirty).toBe(true)
   })
 
@@ -253,6 +280,21 @@ describe('changes on disk', () => {
     await tabs.changed('/a.md', version)
     expect(tab('/a.md').banner).toBe('changed')
     expect(docText()).toContain('Mine')
+    expect(backend.files.get('/a.md')!.text).toBe('# A\n\nTheirs.\n')
+  })
+
+  test('an edit while the reload reads the file stays, and the tab shows the bar', async () => {
+    await tabs.open('/a.md')
+    const version = backend.write('/a.md', '# A\n\nTheirs.\n')
+    const open = backend.open.bind(backend)
+    let finish = () => {}
+    backend.open = (path) => new Promise((resolve) => (finish = () => resolve(open(path))))
+    const changed = tabs.changed('/a.md', version)
+    type('Mine ')
+    finish()
+    await changed
+    expect(docText()).toContain('Mine')
+    expect(tab('/a.md').banner).toBe('changed')
     expect(backend.files.get('/a.md')!.text).toBe('# A\n\nTheirs.\n')
   })
 

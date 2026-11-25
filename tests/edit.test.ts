@@ -160,6 +160,24 @@ Last paragraph.
     expect(doc.save().text).toBe('# Title\n\nText.\n\nNew')
   })
 
+  test('delete one of two equal blocks with different syntax: the other block keeps its own text', async () => {
+    doc = await open('- same\n\n* same\n')
+    const { view } = doc
+    view.dispatch(view.state.tr.delete(0, view.state.doc.child(0).nodeSize))
+    expect(doc.save().text).toBe('* same\n')
+  })
+
+  // The match of the blocks does not use a table of blocks × blocks (memory) for a large move.
+  test('reverse 2000 blocks: each block keeps its text', async () => {
+    const paragraphs = Array.from({ length: 2000 }, (_, i) => `Paragraph ${i}.`)
+    doc = await open(paragraphs.join('\n\n') + '\n')
+    const { view } = doc
+    const reversed: Node[] = []
+    view.state.doc.forEach((node) => reversed.unshift(node))
+    view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, reversed))
+    expect(doc.save().text).toBe(paragraphs.reverse().join('\n\n') + '\n')
+  })
+
   test('edit, then undo: the file does not change', async () => {
     doc = await open(original)
     const { view } = doc
@@ -213,6 +231,19 @@ describe('line endings and BOM', () => {
     const { view } = doc
     view.dispatch(view.state.tr.insertText('!', textPos(view, 'Text.') + 5))
     expect(doc.save().text).toBe('﻿# Title\n\nText.!\n')
+  })
+})
+
+describe('a file with only whitespace', () => {
+  test('a save without edits writes the file once', async () => {
+    doc = await open(' \n\n')
+    expect(doc.save()).toEqual({ text: ' \n\n', changed: false })
+  })
+
+  test('typed text comes before the whitespace', async () => {
+    doc = await open(' \n\n')
+    doc.view.dispatch(doc.view.state.tr.insertText('Hello', 1))
+    expect(doc.save().text).toBe('Hello \n\n')
   })
 })
 
@@ -350,5 +381,14 @@ Text after.
     const { view } = doc
     view.dispatch(view.state.tr.insertText('x', textPos(view, '3') + 1))
     expect(doc.save().text).toBe('| a | b |\r\n|---|---|\r\n| 1 | 2 |\r\n| 3x | 4 |\r\n')
+  })
+
+  test('delete one of two equal rows with different spacing: the other row keeps its own line', async () => {
+    const source = '| a |\n|---|\n|  x |\n| x  |\n'
+    doc = await open(source)
+    const { view } = doc
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, textPos(view, 'x'))))
+    deleteRow(view.state, view.dispatch)
+    expect(doc.save().text).toBe('| a |\n|---|\n| x  |\n')
   })
 })
