@@ -1,0 +1,191 @@
+<script lang="ts">
+  // The window chrome: tab bar, the "changed on disk" bar and the empty state.
+  // The logic is in tabs.ts. This component only shows it.
+  import { onMount } from 'svelte'
+  import type { Tabs } from './tabs'
+
+  interface Props {
+    tabs: Tabs
+    mod: string
+    onOpen: () => void
+    onNew: () => void
+    onClose: (id: number) => void
+    onKeepMine: (id: number) => void
+    onLoad: (id: number) => void
+  }
+
+  let { tabs, mod, onOpen, onNew, onClose, onKeepMine, onLoad }: Props = $props()
+
+  let changes = $state(0)
+  onMount(() => tabs.subscribe(() => changes++))
+
+  const name = (path: string | null) => (path === null ? 'Untitled' : path.split('/').pop())
+  const view = $derived.by(() => {
+    changes
+    return {
+      list: tabs.tabs.map((t) => ({ id: t.id, path: t.path, dirty: t.dirty, active: t === tabs.active })),
+      active: tabs.active ? { id: tabs.active.id, banner: tabs.active.banner } : null,
+    }
+  })
+
+  const bannerText = {
+    changed: 'This file changed on disk.',
+    conflict: 'This file changed on disk. Marky did not save.',
+    deleted: 'This file was deleted or renamed on disk.',
+  }
+</script>
+
+{#if view.list.length > 0}
+  <nav class="tab-bar" aria-label="Open files">
+    {#each view.list as tab (tab.id)}
+      <div class="tab" class:active={tab.active} title={tab.path ?? 'Not saved yet'}>
+        <button class="tab-name" type="button" onclick={() => tabs.activate(tab.id)} aria-current={tab.active ? 'page' : undefined}>
+          {name(tab.path)}
+        </button>
+        <button class="tab-close" class:dirty={tab.dirty} type="button" onclick={() => onClose(tab.id)} aria-label={`Close ${name(tab.path)}`}>
+          <span class="dot" aria-hidden="true">●</span>
+          <span class="cross" aria-hidden="true">×</span>
+        </button>
+      </div>
+    {/each}
+  </nav>
+{/if}
+
+{#if view.active?.banner}
+  <div class="banner" role="alert">
+    <span>{bannerText[view.active.banner]}</span>
+    {#if view.active.banner !== 'deleted'}
+      <button type="button" onclick={() => onKeepMine(view.active!.id)}>Keep mine</button>
+      <button type="button" onclick={() => onLoad(view.active!.id)}>Load from disk</button>
+    {/if}
+  </div>
+{/if}
+
+{#if view.list.length === 0}
+  <div class="empty">
+    <div class="actions">
+      <button type="button" onclick={onOpen}>Open a file <kbd>{mod}</kbd> <kbd>O</kbd></button>
+      <button type="button" onclick={onNew}>New file <kbd>{mod}</kbd> <kbd>T</kbd></button>
+    </div>
+  </div>
+{/if}
+
+<style>
+  .tab-bar {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    display: flex;
+    overflow-x: auto;
+    background: var(--code-bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .tab {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    max-width: 220px;
+    border-right: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  .tab.active {
+    background: var(--bg);
+    color: var(--text);
+  }
+  .tab button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  .tab-name {
+    padding: 7px 4px 7px 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tab-close {
+    width: 24px;
+    height: 24px;
+    margin-right: 4px;
+    border-radius: 4px;
+  }
+  .tab-close:hover {
+    background: var(--border);
+  }
+  /* The dot shows unsaved edits. On hover it becomes the close cross. */
+  .tab-close .dot,
+  .tab-close.dirty .cross {
+    display: none;
+  }
+  .tab-close.dirty .dot {
+    display: inline;
+    font-size: 9px;
+  }
+  .tab-close.dirty:hover .dot {
+    display: none;
+  }
+  .tab-close.dirty:hover .cross {
+    display: inline;
+  }
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  .banner {
+    position: sticky;
+    top: 35px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--code-bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .banner span {
+    flex: 1;
+  }
+  .banner button,
+  .empty button {
+    font: inherit;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 3px 10px;
+    cursor: pointer;
+  }
+
+  .empty {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--text-muted);
+  }
+  .empty .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .empty .actions button {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 6px 12px;
+  }
+  kbd {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+  }
+</style>

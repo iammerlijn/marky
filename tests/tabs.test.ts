@@ -1,0 +1,466 @@
+// @vitest-environment happy-dom
+// Test plan, section 7 (tabs) and the external-change cases of section 6.
+import { editorViewCtx } from '@milkdown/kit/core'
+import { undo } from '@milkdown/kit/prose/history'
+import { TextSelection } from '@milkdown/kit/prose/state'
+import type { EditorView } from '@milkdown/kit/prose/view'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import type { Backend, Opened, SaveError } from '../src/app/backend'
+import { Tabs, type Tab } from '../src/app/tabs'
+import { createEditor, markdownOf } from '../src/editor/setup'
+
+// Files in memory. The version changes on each write, as the modification time does on disk.
+class FakeBackend implements Backend {
+  files = new Map<string, { text: string; version: number }>()
+  saves: string[] = []
+  watched = new Set<string>()
+  private clock = 0
+
+  write(path: string, text: string): string {
+    this.files.set(path, { text, version: ++this.clock })
+    return String(this.clock)
+  }
+  async open(path: string): Promise<Opened> {
+    const file = this.files.get(path)
+    if (!file) throw `No such file: ${path}`
+    return { text: file.text, version: String(file.version) }
+  }
+  creates: string[] = []
+  async create(path: string, text: string): Promise<string> {
+    this.creates.push(path)
+    return this.write(path, text)
+  }
+  async save(path: string, text: string, expectedVersion: string): Promise<string> {
+    const file = this.files.get(path)
+    if (!file || String(file.version) !== expectedVersion) throw { kind: 'Conflict' } satisfies SaveError
+    this.saves.push(path)
+    return this.write(path, text)
+  }
+  async watch(path: string) {
+    this.watched.add(path)
+  }
+  async unwatch(path: string) {
+    this.watched.delete(path)
+  }
+}
+
+let backend: FakeBackend
+let view: EditorView
+let tabs: Tabs
+let scrollTop = 0
+// The answer of the Save As dialog.
+let chosenPath: string | null = null
+let destroy: () => Promise<void>
+
+beforeEach(async () => {
+  backend = new FakeBackend()
+  backend.write('/a.md', '# A\n\nText of A.\n')
+  backend.write('/b.md', '# B\n\nText of B.\n')
+  const root = document.createElement('div')
+  document.body.append(root)
+  const editor = await createEditor(root)
+  view = editor.ctx.get(editorViewCtx)
+  chosenPath = null
+  tabs = new Tabs(view, markdownOf(editor), backend, { get: () => scrollTop, set: (top) => (scrollTop = top) }, async () => chosenPath)
+  destroy = async () => {
+    await editor.destroy()
+    root.remove()
+  }
+})
+afterEach(() => destroy())
+
+const type = (text: string) => view.dispatch(view.state.tr.insertText(text, 1))
+const docText = () => view.state.doc.textContent
+const tab = (path: string) => tabs.tabs.find((t) => t.path === path)!
+const discard = async () => 'discard' as const
+const cancel = async () => 'cancel' as const
+
+describe('tabs', () => {
+  test('open two files: two tabs, the second is active', async () => {
+    await tabs.open('/a.md')
+    await tabs.open('/b.md')
+    expect(tabs.tabs.map((t) => t.path)).toEqual(['/a.md', '/b.md'])
+    expect(tabs.active?.path).toBe('/b.md')
+    expect(docText()).toContain('Text of B.')
+    expect([...backend.watched]).toEqual(['/a.md', '/b.md'])
+  })
+
+  test('open a file that is already open: Marky selects its tab', async () => {
+    await tabs.open('/a.md')
+    await tabs.open('/b.md')
+    await tabs.open('/a.md')
+    expect(tabs.tabs).toHaveLength(2)
+    expect(tabs.active?.path).toBe('/a.md')
+  })
+
+  test('each tab keeps its content, selection, scroll position and undo history', async () => {
+    await tabs.open('/a.md')
+    type('Edit A ')
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 3)))
+    scrollTop = 120
+    await tabs.open('/b.md')
+    type('Edit B ')
+    scrollTop = 0
+    tabs.activate(tab('/a.md').id)
+    expect(docText()).toContain('Edit A')
+    expect(docText()).not.toContain('Edit B')
+    expect(view.state.selection.from).toBe(3)
+    expect(scrollTop).toBe(120)
+    // Undo in tab A does not undo the edit of tab B.
+    undo(view.state, view.dispatch)
+    expect(docText()).not.toContain('Edit A')
+    tabs.activate(tab('/b.md').id)
+    expect(docText()).toContain('Edit B')
+  })
+
+  test('save in tab A writes only file A', async () => {
+    await tabs.open('/a.md')
+    type('Edit A ')
+    await tabs.open('/b.md')
+    type('Edit B ')
+    tabs.activate(tab('/a.md').id)
+    expect(await tabs.save()).toBe(true)
+    expect(backend.saves).toEqual(['/a.md'])
+    expect(backend.files.get('/a.md')!.text).toContain('Edit A')
+    expect(backend.files.get('/b.md')!.text).toBe('# B\n\nText of B.\n')
+  })
+
+  test('save of an inactive tab writes the content of that tab', async () => {
+    await tabs.open('/a.md')
+    type('Edit A ')
+    await tabs.open('/b.md')
+    expect(await tabs.save(tab('/a.md').id)).toBe(true)
+    expect(backend.files.get('/a.md')!.text).toContain('Edit A')
+    expect(backend.files.get('/b.md')!.text).toBe('# B\n\nText of B.\n')
+  })
+
+  test('save without edits writes nothing', async () => {
+    await tabs.open('/a.md')
+    expect(await tabs.save()).toBe(true)
+    expect(backend.saves).toEqual([])
+  })
+
+  test('the dirty flag follows the edits', async () => {
+    await tabs.open('/a.md')
+    type('x')
+    tabs.refreshDirty()
+    expect(tab('/a.md').dirty).toBe(true)
+    await tabs.save()
+    expect(tab('/a.md').dirty).toBe(false)
+    undo(view.state, view.dispatch)
+    tabs.refreshDirty()
+    expect(tab('/a.md').dirty).toBe(true)
+  })
+
+  test('two saves in a row: the second save keeps the blocks of the first', async () => {
+    await tabs.open('/a.md')
+    type('One ')
+    await tabs.save()
+    view.dispatch(view.state.tr.insertText('Two ', view.state.doc.child(0).nodeSize + 1))
+    await tabs.save()
+    expect(backend.files.get('/a.md')!.text).toBe('# One A\n\nTwo Text of A.\n')
+  })
+})
+
+describe('close', () => {
+  test('a tab without edits closes without a question', async () => {
+    await tabs.open('/a.md')
+    await tabs.open('/b.md')
+    expect(await tabs.close(tab('/b.md').id, cancel)).toBe(true)
+    expect(tabs.tabs.map((t) => t.path)).toEqual(['/a.md'])
+    expect(tabs.active?.path).toBe('/a.md')
+    expect(docText()).toContain('Text of A.')
+    expect(backend.watched.has('/b.md')).toBe(false)
+  })
+
+  test('a tab with edits asks. Cancel keeps the tab', async () => {
+    await tabs.open('/a.md')
+    type('x')
+    let asked: Tab | null = null
+    expect(await tabs.close(tab('/a.md').id, async (t) => ((asked = t), 'cancel'))).toBe(false)
+    expect(asked!.path).toBe('/a.md')
+    expect(tabs.tabs).toHaveLength(1)
+  })
+
+  test("Don't Save closes and writes nothing", async () => {
+    await tabs.open('/a.md')
+    type('x')
+    expect(await tabs.close(tab('/a.md').id, discard)).toBe(true)
+    expect(tabs.tabs).toHaveLength(0)
+    expect(tabs.active).toBeNull()
+    expect(backend.saves).toEqual([])
+  })
+
+  test('Save writes and closes', async () => {
+    await tabs.open('/a.md')
+    type('x')
+    expect(await tabs.close(tab('/a.md').id, async () => 'save')).toBe(true)
+    expect(backend.files.get('/a.md')!.text).toContain('x')
+  })
+
+  test('close an inactive tab with edits', async () => {
+    await tabs.open('/a.md')
+    type('x')
+    await tabs.open('/b.md')
+    let asked = ''
+    await tabs.close(tab('/a.md').id, async (t) => ((asked = t.path!), 'discard'))
+    expect(asked).toBe('/a.md')
+    expect(tabs.active?.path).toBe('/b.md')
+  })
+
+  test('dirtyTabs lists the tabs with unsaved edits, for the window close question', async () => {
+    await tabs.open('/a.md')
+    type('x')
+    await tabs.open('/b.md')
+    expect(tabs.dirtyTabs().map((t) => t.path)).toEqual(['/a.md'])
+  })
+})
+
+describe('changes on disk', () => {
+  test('a tab without edits reloads and keeps the scroll position', async () => {
+    await tabs.open('/a.md')
+    scrollTop = 80
+    const version = backend.write('/a.md', '# A\n\nChanged by another app.\n')
+    await tabs.changed('/a.md', version)
+    expect(docText()).toContain('Changed by another app.')
+    expect(scrollTop).toBe(80)
+    expect(tab('/a.md').banner).toBeNull()
+  })
+
+  test('an inactive tab without edits reloads too', async () => {
+    await tabs.open('/a.md')
+    await tabs.open('/b.md')
+    const version = backend.write('/a.md', '# A\n\nChanged.\n')
+    await tabs.changed('/a.md', version)
+    expect(docText()).toContain('Text of B.')
+    tabs.activate(tab('/a.md').id)
+    expect(docText()).toContain('Changed.')
+  })
+
+  test('a tab with edits shows the bar and does not overwrite anything', async () => {
+    await tabs.open('/a.md')
+    type('Mine ')
+    const version = backend.write('/a.md', '# A\n\nTheirs.\n')
+    await tabs.changed('/a.md', version)
+    expect(tab('/a.md').banner).toBe('changed')
+    expect(docText()).toContain('Mine')
+    expect(backend.files.get('/a.md')!.text).toBe('# A\n\nTheirs.\n')
+  })
+
+  test('Keep mine: the next save writes my edits', async () => {
+    await tabs.open('/a.md')
+    type('Mine ')
+    const version = backend.write('/a.md', '# A\n\nTheirs.\n')
+    await tabs.changed('/a.md', version)
+    await tabs.keepMine(tab('/a.md').id)
+    expect(tab('/a.md').banner).toBeNull()
+    expect(await tabs.save()).toBe(true)
+    expect(backend.files.get('/a.md')!.text).toContain('Mine')
+  })
+
+  test('Load from disk: the edits are replaced by the file on disk', async () => {
+    await tabs.open('/a.md')
+    type('Mine ')
+    const version = backend.write('/a.md', '# A\n\nTheirs.\n')
+    await tabs.changed('/a.md', version)
+    await tabs.loadFromDisk(tab('/a.md').id)
+    expect(docText()).toContain('Theirs.')
+    expect(tab('/a.md').banner).toBeNull()
+    expect(tab('/a.md').dirty).toBe(false)
+  })
+
+  test('the event of an own save changes nothing', async () => {
+    await tabs.open('/a.md')
+    type('x')
+    await tabs.save()
+    type('y')
+    await tabs.changed('/a.md', tab('/a.md').version)
+    expect(tab('/a.md').banner).toBeNull()
+    expect(docText()).toContain('yx')
+  })
+
+  test('a change between the last read and the save: the save stops with a conflict', async () => {
+    await tabs.open('/a.md')
+    type('Mine ')
+    backend.write('/a.md', '# A\n\nTheirs.\n')
+    expect(await tabs.save()).toBe(false)
+    expect(tab('/a.md').banner).toBe('conflict')
+    expect(backend.files.get('/a.md')!.text).toBe('# A\n\nTheirs.\n')
+  })
+
+  test('a deleted file shows the bar, and a save does not create it again', async () => {
+    await tabs.open('/a.md')
+    type('x')
+    backend.files.delete('/a.md')
+    await tabs.changed('/a.md', null)
+    expect(tab('/a.md').banner).toBe('deleted')
+    expect(await tabs.save()).toBe(false)
+    expect(backend.files.has('/a.md')).toBe(false)
+  })
+
+  test('50 files change at the same time (git checkout): all tabs reload', async () => {
+    for (let i = 0; i < 50; i++) backend.write(`/f${i}.md`, `# File ${i}\n`)
+    for (let i = 0; i < 50; i++) await tabs.open(`/f${i}.md`)
+    const versions = Array.from({ length: 50 }, (_, i) => backend.write(`/f${i}.md`, `# File ${i} changed\n`))
+    await Promise.all(versions.map((version, i) => tabs.changed(`/f${i}.md`, version)))
+    for (let i = 0; i < 50; i++) {
+      tabs.activate(tab(`/f${i}.md`).id)
+      expect(docText()).toBe(`File ${i} changed`)
+    }
+  })
+})
+
+describe('new tab', () => {
+  const typeAtStart = (text: string) => view.dispatch(view.state.tr.insertText(text, 1))
+
+  test('a new tab is empty, untitled and active', async () => {
+    await tabs.open('/a.md')
+    tabs.newTab()
+    expect(tabs.tabs).toHaveLength(2)
+    expect(tabs.active?.path).toBeNull()
+    expect(docText()).toBe('')
+  })
+
+  test('the first save asks for a file name and creates the file with a final newline', async () => {
+    tabs.newTab()
+    typeAtStart('New text')
+    tabs.refreshDirty()
+    expect(tabs.active?.dirty).toBe(true)
+    chosenPath = '/new.md'
+    expect(await tabs.save()).toBe(true)
+    expect(backend.creates).toEqual(['/new.md'])
+    expect(backend.files.get('/new.md')!.text).toBe('New text\n')
+    expect(tabs.active?.path).toBe('/new.md')
+    expect(tabs.active?.dirty).toBe(false)
+    expect(backend.watched.has('/new.md')).toBe(true)
+  })
+
+  test('the second save writes to the same file without a question', async () => {
+    tabs.newTab()
+    typeAtStart('One')
+    chosenPath = '/new.md'
+    await tabs.save()
+    chosenPath = null
+    view.dispatch(view.state.tr.insertText(' two', view.state.doc.content.size - 1))
+    expect(await tabs.save()).toBe(true)
+    expect(backend.creates).toEqual(['/new.md'])
+    expect(backend.files.get('/new.md')!.text).toBe('One two\n')
+  })
+
+  test('cancel in the Save As dialog saves nothing', async () => {
+    tabs.newTab()
+    typeAtStart('x')
+    expect(await tabs.save()).toBe(false)
+    expect(backend.creates).toEqual([])
+    expect(tabs.active?.path).toBeNull()
+  })
+
+  test('an empty new tab closes without a question', async () => {
+    tabs.newTab()
+    expect(await tabs.close(tabs.active!.id, cancel)).toBe(true)
+    expect(tabs.tabs).toHaveLength(0)
+  })
+
+  test('a new tab with text asks before it closes', async () => {
+    tabs.newTab()
+    typeAtStart('x')
+    expect(await tabs.close(tabs.active!.id, cancel)).toBe(false)
+  })
+
+  test('the session does not list a new tab without a file', async () => {
+    await tabs.open('/a.md')
+    tabs.newTab()
+    expect(tabs.session()).toEqual({ paths: ['/a.md'], active: null })
+  })
+})
+
+describe('raw mode', () => {
+  test('raw mode shows the text of the file', async () => {
+    await tabs.open('/a.md')
+    tabs.enterRaw()
+    expect(tabs.active?.rawText).toBe('# A\n\nText of A.\n')
+  })
+
+  test('switch to source and back without edits: the document and the file do not change', async () => {
+    await tabs.open('/a.md')
+    type('x')
+    const before = view.state
+    tabs.enterRaw()
+    await tabs.leaveRaw()
+    expect(view.state).toBe(before)
+    expect(tabs.active?.rawText).toBeNull()
+    undo(view.state, view.dispatch)
+    expect(await tabs.save()).toBe(true)
+    expect(backend.saves).toEqual([])
+  })
+
+  test('an edit in raw mode shows in the editor, and a save writes the raw text exactly', async () => {
+    await tabs.open('/a.md')
+    tabs.enterRaw()
+    tabs.setRawText('# A\n\nText of A.\n\n* star bullet\n* two\n')
+    await tabs.leaveRaw()
+    expect(docText()).toContain('star bullet')
+    tabs.refreshDirty()
+    expect(tab('/a.md').dirty).toBe(true)
+    await tabs.save()
+    expect(backend.files.get('/a.md')!.text).toBe('# A\n\nText of A.\n\n* star bullet\n* two\n')
+  })
+
+  test('a save in raw mode writes the raw text and keeps raw mode', async () => {
+    await tabs.open('/a.md')
+    tabs.enterRaw()
+    tabs.setRawText('# A\n\nChanged in raw mode.\n')
+    tabs.refreshDirty()
+    expect(tab('/a.md').dirty).toBe(true)
+    expect(await tabs.save()).toBe(true)
+    expect(backend.files.get('/a.md')!.text).toBe('# A\n\nChanged in raw mode.\n')
+    expect(tab('/a.md').dirty).toBe(false)
+    expect(tab('/a.md').rawText).toBe('# A\n\nChanged in raw mode.\n')
+    await tabs.leaveRaw()
+    expect(docText()).toContain('Changed in raw mode.')
+  })
+
+  test('each tab keeps its own mode', async () => {
+    await tabs.open('/a.md')
+    tabs.enterRaw()
+    tabs.setRawText('# A raw\n')
+    await tabs.open('/b.md')
+    expect(tabs.active?.rawText).toBeNull()
+    tabs.activate(tab('/a.md').id)
+    expect(tabs.active?.rawText).toBe('# A raw\n')
+  })
+
+  test('a change on disk in raw mode without edits shows the new text', async () => {
+    await tabs.open('/a.md')
+    tabs.enterRaw()
+    const version = backend.write('/a.md', '# A\n\nNew on disk.\n')
+    await tabs.changed('/a.md', version)
+    expect(tabs.active?.rawText).toBe('# A\n\nNew on disk.\n')
+  })
+
+  test('a change on disk in raw mode with edits shows the bar', async () => {
+    await tabs.open('/a.md')
+    tabs.enterRaw()
+    tabs.setRawText('mine\n')
+    const version = backend.write('/a.md', 'theirs\n')
+    await tabs.changed('/a.md', version)
+    expect(tab('/a.md').banner).toBe('changed')
+    expect(tabs.active?.rawText).toBe('mine\n')
+  })
+})
+
+describe('session', () => {
+  test('the session lists the open files and the active file', async () => {
+    await tabs.open('/a.md')
+    await tabs.open('/b.md')
+    tabs.activate(tab('/a.md').id)
+    expect(tabs.session()).toEqual({ paths: ['/a.md', '/b.md'], active: '/a.md' })
+  })
+})
+
+describe('errors', () => {
+  test('a file that cannot be opened gives an error and no tab', async () => {
+    await expect(tabs.open('/missing.md')).rejects.toThrow('No such file')
+    expect(tabs.tabs).toHaveLength(0)
+  })
+})
