@@ -337,6 +337,33 @@ describe('changes on disk', () => {
     expect(docText()).toBe('Mine AText of A.')
   })
 
+  test('typing just after a reload is its own undo step', async () => {
+    await tabs.open('/a.md')
+    const version = backend.write('/a.md', '# A\n\nTheirs.\n')
+    await tabs.changed('/a.md', version)
+    type('x')
+    undo(view.state, view.dispatch)
+    expect(docText()).toBe('ATheirs.')
+  })
+
+  test('a save after the undo of a reload writes the old file, with its hidden blocks', async () => {
+    const old = '# A\n\n* Text of A [x].\n\n[x]: https://x.test\n'
+    backend.write('/a.md', old)
+    await tabs.open('/a.md')
+    const version = backend.write('/a.md', '# A\n\n* Theirs.\n')
+    await tabs.changed('/a.md', version)
+    undo(view.state, view.dispatch)
+    await tabs.save()
+    expect(backend.files.get('/a.md')!.text).toBe(old)
+  })
+
+  test('a reload opens a collapsible with the open attribute', async () => {
+    await tabs.open('/a.md')
+    const version = backend.write('/a.md', '<details open>\n<summary>S</summary>\n\nBody.\n\n</details>\n')
+    await tabs.changed('/a.md', version)
+    expect(view.dom.querySelector('.is-open')).not.toBeNull()
+  })
+
   test('a save after a reload keeps the blocks of the new file', async () => {
     backend.write('/a.md', '# A\n\nText of A.\n')
     await tabs.open('/a.md')
