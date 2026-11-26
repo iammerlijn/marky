@@ -129,6 +129,14 @@ The backend is small. It does only what the webview cannot do.
 
 **Not tested yet:** the file dialog portal (the check used `--file-forwarding`, which uses the same document store) and "Save As" for a new file.
 
+### 4.4 Flatpak: the warning "Error writing credentials to socket"
+
+**Problem:** one start of the Flatpak showed `** (process:<pid>): WARNING **: Error writing credentials to socket: Error sending message: Broken pipe` ([issue 13](https://github.com/iammerlijn/marky/issues/13)). Later starts did not show it.
+
+**Cause:** the warning comes from `xdg-dbus-proxy` on the host, not from Marky. Flatpak puts this proxy between the app and the session bus. The proxy uses the same text for each failed write (`flatpak-proxy.c`, `buffer_write`), thus the text "credentials" is not correct. The write fails when a process in the sandbox closes its bus connection while a reply or a signal for it is still on the way. The proxy then closes only that connection. Marky has about 7 bus connections at the start (GTK, the WebKit processes and the single-instance plugin), thus a process that closes a connection at the wrong time can cause the warning. A test client that sends calls to `/run/flatpak/bus` and closes the socket before the replies arrive gives the same warning each time.
+
+**Result:** keep the warning. It does not change how Marky works, the cause is in a timing race between processes that Marky does not control, and Marky cannot remove a message of the host proxy.
+
 ## 5. Save design: block preservation
 
 **Problem:** after a round trip, the serializer writes some blocks in a different way, even when you did not edit them.
