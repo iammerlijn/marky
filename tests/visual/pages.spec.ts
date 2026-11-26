@@ -39,6 +39,25 @@ test('outline: keyboard', async ({ page }) => {
   expect(await page.evaluate(() => window.getSelection()?.anchorNode?.parentElement?.closest('h1, h2, h3, h4, h5, h6')?.textContent)).toBe(last)
 })
 
+test('app: markdown source button', async ({ page }) => {
+  await page.goto('/dev/app.html')
+  await page.waitForSelector('body[data-ready]')
+  const button = page.getByRole('button', { name: 'Markdown source' })
+  await expect(button).toHaveAttribute('aria-pressed', 'false')
+  await button.click()
+  await expect(button).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('#raw')).toBeVisible()
+  // The source view is set for each tab.
+  await page.locator('.tab-name').nth(1).click()
+  await expect(button).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.locator('#raw')).toBeHidden()
+  await page.locator('.tab-name').first().click()
+  await expect(button).toHaveAttribute('aria-pressed', 'true')
+  await button.click()
+  await expect(button).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.locator('#editor')).toBeVisible()
+})
+
 const documents = [
   ['sample', '/dev/preview.html'],
   ['tables', '/dev/preview.html?file=tables.md'],

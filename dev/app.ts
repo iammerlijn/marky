@@ -71,6 +71,7 @@ mount(App, {
     onClose: (id: number) => tabs.close(id, async () => 'discard'),
     onKeepMine: (id: number) => tabs.keepMine(id),
     onLoad: (id: number) => tabs.loadFromDisk(id),
+    onToggleRaw: () => (tabs.active?.rawText === null ? tabs.enterRaw() : tabs.leaveRaw()),
   },
 })
 
