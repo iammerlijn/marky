@@ -18,7 +18,7 @@ import { createEditor, markdownOf } from '../editor/setup'
 import App from './App.svelte'
 import { onFileChanged, onOpenFiles, tauriBackend } from './backend'
 import { modLabel, shortcut, type Action } from './keys'
-import { RawEditor } from './raw'
+import type { RawEditor } from './raw'
 import { addRecent, recentFiles, removeRecent } from './recent'
 import { Tabs, type CloseAnswer, type Tab } from './tabs'
 
@@ -120,23 +120,27 @@ const checkDirty = () => {
   timer = setTimeout(() => tabs.refreshDirty(), 250)
 }
 
-// Raw mode: the source editor replaces the editor for a tab.
+// Raw mode: the source editor replaces the editor for a tab. CodeMirror is not in the main
+// script: it loads the first time raw mode opens.
 const rawRoot = document.getElementById('raw')!
-const raw = new RawEditor(rawRoot, (text) => {
-  tabs.setRawText(text)
-  checkDirty()
-})
+let raw: RawEditor | undefined
+let rawLoad: Promise<RawEditor> | undefined
+const loadRaw = () =>
+  (rawLoad ??= import('./raw').then(({ RawEditor }) => (raw = new RawEditor(rawRoot, (text) => {
+    tabs.setRawText(text)
+    checkDirty()
+  }))))
 const rawTabs = new Set<number>()
 // A file that a tab shows for the first time goes to the top of the Recent list.
 const known = new Map<number, string>()
 
 // Window title, the visible editor and the session for the next start.
 const SESSION = 'marky.session'
-tabs.subscribe(() => {
+function update() {
   const active = tabs.active
   for (const id of rawTabs) {
     if (!tabs.tabs.some((t) => t.id === id && t.rawText !== null)) {
-      raw.forget(id)
+      raw!.forget(id)
       rawTabs.delete(id)
     }
   }
@@ -147,8 +151,13 @@ tabs.subscribe(() => {
     }
   }
   const inRaw = active?.rawText != null
-  if (inRaw) {
-    raw.show(active!.id, active!.rawText!)
+  // A file that the block map cannot read opens in raw mode, maybe before CodeMirror is loaded.
+  if (inRaw && !raw) void run(async () => {
+    await loadRaw()
+    update()
+  })
+  else if (inRaw) {
+    raw!.show(active!.id, active!.rawText!)
     rawTabs.add(active!.id)
   }
   editorRoot.hidden = !active || inRaw
@@ -160,7 +169,8 @@ tabs.subscribe(() => {
   } catch {
     // Without storage, the next start opens no tabs.
   }
-})
+}
+tabs.subscribe(update)
 editorRoot.hidden = true
 rawRoot.hidden = true
 
@@ -179,8 +189,13 @@ function toggleRaw() {
   const active = tabs.active
   if (!active) return
   if (active.rawText === null) {
-    tabs.enterRaw()
-    raw.focus()
+    void run(async () => {
+      const editor = await loadRaw()
+      // While CodeMirror loads, the user can go to another tab or press the shortcut again.
+      if (tabs.active !== active || active.rawText !== null) return
+      tabs.enterRaw()
+      editor.focus()
+    })
   } else {
     void run(async () => {
       tabs.leaveRaw()
@@ -252,6 +267,10 @@ if (isFirstWindow) try {
 
 await onOpenFiles(openPaths, isFirstWindow)
 void invoke('bench_mark', { label: 'opened' })
+// The window starts hidden (tauri.conf.json, new_window in src-tauri/src/lib.rs), so that no
+// empty window shows. Show it now: the next paint has the document. Not in a frame callback:
+// a hidden web view can stop the frames.
+void appWindow.show()
 
 // For dev/measure-app.sh: the time from the process start to the painted files. The backend
 // prints it only when MARKY_BENCH is set.

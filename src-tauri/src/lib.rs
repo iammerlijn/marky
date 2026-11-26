@@ -117,7 +117,9 @@ async fn new_window(app: AppHandle) -> Result<(), String> {
     let label = format!("window-{}", NEXT.fetch_add(1, Ordering::Relaxed));
     let builder = WebviewWindowBuilder::new(&app, label, WebviewUrl::default())
         .title("Marky")
-        .inner_size(1000.0, 800.0);
+        .inner_size(1000.0, 800.0)
+        // The frontend shows the window when the document is ready (src/app/main.ts).
+        .visible(false);
     // The same title bar as the first window (tauri.conf.json): the tabs are in it.
     #[cfg(target_os = "macos")]
     let builder = builder
