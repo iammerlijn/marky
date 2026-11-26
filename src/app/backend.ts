@@ -1,4 +1,4 @@
-// The Rust backend (design document, section 4.1). Tests use a fake with files in memory.
+// The Rust backend. Tests use a fake with files in memory.
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 

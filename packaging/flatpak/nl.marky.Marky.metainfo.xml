@@ -4,6 +4,7 @@
   <name>Marky</name>
   <summary>Edit markdown files as finished documents</summary>
   <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
   <description>
     <p>Marky shows markdown as a finished document, with real tables, diagrams and collapsibles.
     When it saves, it keeps the text of each part that you did not edit.</p>

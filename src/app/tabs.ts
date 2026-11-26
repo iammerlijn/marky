@@ -1,4 +1,4 @@
-// Tabs (design document, sections 4.2 and 7). One editor view; each tab keeps its own
+// Tabs. One editor view; each tab keeps its own
 // EditorState, so its content, selection and undo history stay when you change tabs.
 import { closeHistory } from '@milkdown/kit/prose/history'
 import { EditorState, type Plugin } from '@milkdown/kit/prose/state'
@@ -306,7 +306,7 @@ export class Tabs {
     await this.reload(this.find(id))
   }
 
-  // Raw mode (design document, section 6.6): show the text that a save writes.
+  // Raw mode: show the text that a save writes.
   enterRaw(id = this.active?.id) {
     if (id === undefined) return
     const tab = this.find(id)

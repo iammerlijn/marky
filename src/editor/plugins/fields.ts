@@ -1,4 +1,4 @@
-// The fields of the front matter panel (design document, section 6.5).
+// The fields of the front matter panel.
 // Simple values show as fields. Other YAML shows as raw YAML. A field edit replaces only the
 // source text of its value, so the rest of the YAML keeps its exact formatting.
 import { Document, isAlias, isMap, isScalar, isSeq, parseDocument, type Scalar } from 'yaml'

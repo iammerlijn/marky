@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// Collapsibles (design document, section 6.3; test plan, section 5.2).
+// Collapsibles.
 import type { Node } from '@milkdown/kit/prose/model'
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state'
 import { afterEach, describe, expect, test } from 'vitest'

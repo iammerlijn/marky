@@ -1,4 +1,4 @@
-// Open and save (design document, section 4.1).
+// Open and save.
 use serde::Serialize;
 use std::fs::{self, File};
 use std::hash::{DefaultHasher, Hasher};

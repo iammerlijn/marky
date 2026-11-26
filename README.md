@@ -9,7 +9,10 @@ Marky is a desktop markdown editor for macOS and Linux. It shows your file as a 
 
 Open a file, edit it, close it. There are no folders, no vaults and no setup.
 
-![A markdown file open in Marky, with a table, a collapsible section and a diagram](docs/images/document-light.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/document-dark.png">
+  <img alt="A markdown file open in Marky, with a table, a collapsible section and a diagram" src="docs/images/document-light.png">
+</picture>
 
 ## Features
 
@@ -29,17 +32,11 @@ Open a file, edit it, close it. There are no folders, no vaults and no setup.
 
 A thin rail at the left edge shows one dash for each heading. Hover over the rail to see all headings and go to one.
 
-![The outline panel open over the document](docs/images/outline.png)
-
 ### Source view
 
 `Cmd+Shift+M` (macOS) or `Ctrl+Shift+M` (Linux) shows the markdown source of the file. Press it again to go back to the document.
 
 ![The same file in the source view](docs/images/source.png)
-
-### Dark mode
-
-![The document in dark mode](docs/images/document-dark.png)
 
 ## Keyboard shortcuts
 
@@ -91,6 +88,10 @@ The fidelity tests open and save each file in `tests/corpus/` and check that no 
 
 ## Documentation
 
-- [Design document](docs/design.md): goals, decisions, architecture and the save design
 - [Style sheet](docs/style.md): the design rules of the UI
-- [Test plan](docs/test-plan.md)
+
+## License
+
+Copyright (C) 2026 iammerlijn
+
+Marky is free software under the [GNU General Public License v3.0](LICENSE). You can use, change and share it. If you share a changed version, you must share its source under the same license.

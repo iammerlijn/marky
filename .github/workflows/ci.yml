@@ -1,4 +1,4 @@
-# Test plan, section 2: tests at each commit, on Linux and macOS.
+# Tests at each commit, on Linux and macOS.
 name: CI
 
 # Push only for main: a pull request runs the jobs for its branch, so they do not run twice.

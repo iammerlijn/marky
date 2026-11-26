@@ -1,4 +1,4 @@
-// The source editor of raw mode (design document, section 6.6): CodeMirror 6 with markdown
+// The source editor of raw mode: CodeMirror 6 with markdown
 // highlighting. Each tab keeps its own CodeMirror state, so it keeps its undo history.
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
