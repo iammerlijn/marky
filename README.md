@@ -51,6 +51,17 @@ Marky uses `Cmd` on macOS and `Ctrl` on Linux.
 | `Cmd/Ctrl+N` | New window |
 | `Cmd/Ctrl+Shift+M` | Show or hide the markdown source |
 
+Back, forward and tab changes use other keys on Linux:
+
+| Action | macOS | Linux |
+|---|---|---|
+| Back | `Cmd+[` | `Alt+Left` |
+| Forward | `Cmd+]` | `Alt+Right` |
+| Previous tab | `Cmd+Option+Left`, `Cmd+Shift+[`, `Ctrl+Shift+Tab` | `Ctrl+PageUp`, `Ctrl+Shift+Tab` |
+| Next tab | `Cmd+Option+Right`, `Cmd+Shift+]`, `Ctrl+Tab` | `Ctrl+PageDown`, `Ctrl+Tab` |
+
+Back and forward go to the places where you were before: a tab change, an opened file or a jump with the outline adds a place. Places of closed tabs are skipped.
+
 You can also open a file from the command line (`marky notes.md`) or with "Open With" in your file manager.
 
 ## Build from source

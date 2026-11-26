@@ -7,6 +7,7 @@ import '../styles/tokens.css'
 import '../styles/document.css'
 import '../styles/outline.css'
 import { editorViewCtx } from '@milkdown/kit/core'
+import { Selection } from '@milkdown/kit/prose/state'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { homeDir } from '@tauri-apps/api/path'
@@ -14,10 +15,12 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message, open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { mount } from 'svelte'
+import { JUMP_EVENT } from '../editor/plugins/outline'
 import { createEditor, markdownOf } from '../editor/setup'
 import App from './App.svelte'
 import { onFileChanged, onOpenFiles, tauriBackend } from './backend'
-import { modLabel, shortcut, type Action } from './keys'
+import { History, type Place } from './history'
+import { listenForShortcuts, modLabel, type Action } from './keys'
 import type { RawEditor } from './raw'
 import { addRecent, recentFiles, removeRecent } from './recent'
 import { Tabs, type CloseAnswer, type Tab } from './tabs'
@@ -198,6 +201,52 @@ function toggleRaw() {
   }
 }
 
+// Back and forward. A tab change (also from an opened file) and an outline jump add a place.
+const history = new History()
+let shownTab: Tab | null = null
+let travelling = false
+const here = (): Place | null =>
+  tabs.active && { tab: tabs.active.id, pos: view.state.selection.head, scroll: window.scrollY }
+tabs.subscribe(() => {
+  const previous = shownTab
+  if (tabs.active === previous) return
+  shownTab = tabs.active
+  if (travelling || !tabs.active) return
+  // The tab that is not active now keeps its editor state and its scroll position.
+  const from = previous && tabs.tabs.includes(previous)
+    ? { tab: previous.id, pos: previous.state.selection.head, scroll: previous.scroll }
+    : null
+  history.visit(from, here()!)
+})
+editorRoot.addEventListener(JUMP_EVENT, (event) => {
+  const from = (event as CustomEvent<{ pos: number; scroll: number }>).detail
+  if (tabs.active) history.visit({ tab: tabs.active.id, ...from }, here()!)
+})
+
+function focusActive() {
+  if (tabs.active?.rawText != null) raw?.focus()
+  else view.focus()
+}
+
+function travel(place: Place | null) {
+  if (!place) return
+  travelling = true
+  try {
+    tabs.activate(place.tab)
+  } finally {
+    travelling = false
+  }
+  // In raw mode the editor document is not visible: only the tab and the scroll position count.
+  if (tabs.active?.rawText === null) {
+    const doc = view.state.doc
+    view.dispatch(view.state.tr.setSelection(Selection.near(doc.resolve(Math.min(place.pos, doc.content.size)))))
+  }
+  focusActive()
+  window.scrollTo(0, place.scroll)
+}
+
+const isOpen = (id: number) => tabs.tabs.some((t) => t.id === id)
+
 function perform(action: Action) {
   if (action === 'open') void chooseFile()
   else if (action === 'save') void run(() => tabs.save())
@@ -213,14 +262,15 @@ function perform(action: Action) {
   } else if (action === 'new-window') void run(() => invoke('new_window'))
   else if (action === 'toggle-raw') toggleRaw()
   else if (action === 'quit') void run(() => invoke('quit_app'))
+  else if (action === 'back') travel(history.back(here(), isOpen))
+  else if (action === 'forward') travel(history.forward(here(), isOpen))
+  else if (action === 'previous-tab' || action === 'next-tab') {
+    tabs.activateNext(action === 'next-tab' ? 1 : -1)
+    focusActive()
+  }
 }
 
-window.addEventListener('keydown', (event) => {
-  const action = shortcut(event)
-  if (!action) return
-  event.preventDefault()
-  perform(action)
-})
+listenForShortcuts(perform)
 // The macOS menu bar sends the same actions (src-tauri/src/menu.rs).
 await listen<Action>('menu', ({ payload }) => perform(payload))
 
