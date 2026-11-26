@@ -191,7 +191,7 @@ A moved block stays clean, because its content did not change. The end of the fi
 
 - Shiki highlighting, a language label and a copy button.
 - Load Shiki languages only when a file needs them.
-- Marky includes about 60 common languages (`src/editor/plugins/languages.ts`), not all ~240 of Shiki: they added about 15 MB to the app. Other languages show as plain code.
+- Marky includes about 55 common languages (`src/editor/plugins/languages.ts`), not all ~240 of Shiki: they added about 15 MB to the app. Other languages show as plain code.
 - Inside a code block, typing works as in a plain text editor (`Tab` indents).
 
 ### 6.5 Front matter
@@ -336,6 +336,21 @@ before it. Two changes made the start faster:
 - The window starts hidden and `src/app/main.ts` shows it when the files are open. No empty
   window shows. Before, the wait for the first painted frame was about 1 s; now the paint comes
   directly after the window shows.
+
+**Frontend size (2026-11-26, `npm run build`, [issue 15](https://github.com/iammerlijn/marky/issues/15)):**
+`dist/` is 9.6 MB. CI fails when it is larger than 12 MB (`dev/check-size.sh`, in the build
+job). Most parts load only when a document needs them, so the size on disk does not slow the
+start.
+
+| Part | Size | Loads when |
+|---|---|---|
+| Mermaid and its dependencies (elk 1.4 MB, cytoscape 0.6 MB, katex 0.25 MB) | 4.6 MB | A document has a diagram |
+| Shiki languages (C++ 0.78 MB) | 2.8 MB | A code block uses the language |
+| Fonts | 0.5 MB | At the start |
+| The app, the editor, Shiki core | 0.7 MB | At the start |
+
+Objective-C, Less, OCaml and Perl were removed (0.3 MB): markdown files seldom use them. The
+Ruby grammar loads the C++ grammar, so C++ stays.
 
 Each tab costs only about 1.5 MB. The memory is mostly the base cost of WebKitGTK.
 `content-visibility: auto` on the blocks gave 740 ms for 5,000 lines, but it changes the layout
