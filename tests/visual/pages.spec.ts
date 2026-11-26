@@ -182,28 +182,51 @@ for (const [system, theme] of [['dark', 'light'], ['light', 'dark']] as const) {
 }
 
 // The settings window: macOS has "Warn Before Quitting", Linux has the About section. The
-// viewport is the size of the window (show_settings in src-tauri/src/lib.rs).
-for (const [os, height] of [['mac', 184], ['linux', 264]] as const) {
+// viewport is the size of the window (show_settings in src-tauri/src/lib.rs). The open theme menu
+// must fit in the window.
+for (const [os, height] of [['mac', 192], ['linux', 226]] as const) {
   for (const colorScheme of ['light', 'dark'] as const) {
     test(`settings: ${os}, ${colorScheme}`, async ({ page }) => {
       await page.emulateMedia({ colorScheme })
-      await page.setViewportSize({ width: 420, height })
+      await page.setViewportSize({ width: 480, height })
       await page.goto(`/dev/settings.html?os=${os}`)
       await page.waitForSelector('body[data-ready]')
-      await expect(page.getByRole('radio', { name: 'System' })).toBeChecked()
-      expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(height)
+      await expect(page.getByRole('button', { name: 'Appearance System' })).toBeVisible()
+      expect(await page.evaluate(() => document.body.offsetHeight)).toBe(height)
       await expect(page).toHaveScreenshot(`settings-${os}-${colorScheme}.png`)
+      await page.getByRole('button', { name: 'Appearance System' }).click()
+      const menu = await page.getByRole('listbox').boundingBox()
+      expect(menu!.y + menu!.height).toBeLessThanOrEqual(height)
+      await expect(page).toHaveScreenshot(`settings-${os}-${colorScheme}-menu.png`)
     })
   }
 }
 
-test('settings: a click on a theme changes the theme at once', async ({ page }) => {
+test('settings: a choice in the theme menu changes the theme at once', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' })
   await page.goto('/dev/settings.html')
   await page.waitForSelector('body[data-ready]')
-  await page.getByText('Dark', { exact: true }).click()
-  await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked()
+  await page.getByRole('button', { name: 'Appearance System' }).click()
+  await page.getByRole('option', { name: 'Dark' }).click()
+  await expect(page.getByRole('listbox')).toBeHidden()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
-  await page.getByText('System', { exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Appearance Dark' })).toBeFocused()
+
+  // The keyboard: open, move up, choose.
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByRole('option', { name: 'Dark' })).toHaveAttribute('aria-selected', 'true')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme')
+
+  // Escape and a click outside close the menu without a change.
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('listbox')).toBeHidden()
+  await page.keyboard.press(' ')
+  await page.mouse.click(10, 180)
+  await expect(page.getByRole('listbox')).toBeHidden()
   await expect(page.locator('html')).not.toHaveAttribute('data-theme')
 })

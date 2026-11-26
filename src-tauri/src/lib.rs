@@ -83,11 +83,12 @@ fn show_settings(app: &AppHandle) -> tauri::Result<()> {
         window.unminimize()?;
         return window.set_focus();
     }
-    // Linux shows the About section too (src/app/Settings.svelte).
-    let height = if cfg!(target_os = "macos") { 184.0 } else { 264.0 };
+    // Linux shows the About section too (src/app/Settings.svelte). The page then sets the height
+    // to its content (src/app/settings.ts).
+    let height = if cfg!(target_os = "macos") { 192.0 } else { 226.0 };
     WebviewWindowBuilder::new(app, SETTINGS_WINDOW, WebviewUrl::App("settings.html".into()))
         .title("Settings")
-        .inner_size(420.0, height)
+        .inner_size(480.0, height)
         .resizable(false)
         .minimizable(false)
         .maximizable(false)
