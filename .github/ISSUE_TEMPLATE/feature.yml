@@ -1,0 +1,18 @@
+name: Feature request
+description: An idea for Marky.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What do you want to do?
+      description: Tell the task, not only the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why?
+      description: Why is it important for you, and what do you do now without it?
+    validations:
+      required: true
