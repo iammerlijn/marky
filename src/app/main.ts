@@ -1,4 +1,4 @@
-// The app window (design document, sections 4.2 and 7).
+// The app window.
 import '@fontsource/inter/400.css'
 import '@fontsource/inter/600.css'
 import '@fontsource/jetbrains-mono/400.css'

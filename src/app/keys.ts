@@ -1,4 +1,4 @@
-// App shortcuts: Cmd on macOS, Ctrl on Linux (test plan, section 8).
+// App shortcuts: Cmd on macOS, Ctrl on Linux.
 
 export type Action = 'open' | 'save' | 'close-tab' | 'new-tab' | 'new-window' | 'toggle-raw' | 'quit'
 

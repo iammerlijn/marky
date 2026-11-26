@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// Test plan, section 4: content-loss test. Random documents, one random edit each.
+// Content-loss test. Random documents, one random edit each.
 // Each block that the edit did not touch must stay in the file without change.
 import { expect, test } from 'vitest'
 import { open } from './helpers'

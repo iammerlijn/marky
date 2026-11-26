@@ -1,4 +1,4 @@
-/* The document column. Simple CSS only: no blur, no large shadows (design document, section 8). */
+/* The document column. Simple CSS only: no blur, no large shadows. */
 body {
   margin: 0;
   background: var(--bg);
@@ -192,7 +192,7 @@ body {
   margin: 0;
 }
 
-/* Raw HTML, until the plugins for collapsibles and other HTML exist (design document, step 5). */
+/* Raw HTML, until the plugins for collapsibles and other HTML exist. */
 .ProseMirror [data-type='html'] {
   font-family: var(--font-mono);
   font-size: 0.87em;

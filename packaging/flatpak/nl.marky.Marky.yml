@@ -1,4 +1,4 @@
-# Flatpak of Marky (design document, sections 2 and 4.3). Build: packaging/flatpak/build.sh
+# Flatpak of Marky. Build: packaging/flatpak/build.sh
 # No filesystem permission: files come through the document portal (file dialog and
 # "open with"), and the backend polls portal paths for changes.
 id: nl.marky.Marky

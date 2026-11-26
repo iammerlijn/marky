@@ -1,6 +1,6 @@
 // The nodes of one type in the ranges that a transaction changed, by their position in the new
 // document. Plugins use it to update their decorations only where an edit happened: a walk of a
-// long document at each key is too slow (design document, section 9).
+// long document at each key is too slow.
 import type { Node } from '@milkdown/kit/prose/model'
 import type { Transaction } from '@milkdown/kit/prose/state'
 

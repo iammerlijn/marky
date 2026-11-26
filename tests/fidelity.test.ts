@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// Test plan, section 3: open and save without edits gives 0 changed bytes.
+// Open and save without edits gives 0 changed bytes.
 import { readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -25,7 +25,7 @@ function markdownFiles(dir: string): string[] {
 async function expectRoundTrip(path: string) {
   const bytes = readFileSync(path)
   const text = bytes.toString('utf8')
-  // Files that are not valid UTF-8 are not opened for editing (test plan, section 6).
+  // Files that are not valid UTF-8 are not opened for editing.
   if (!Buffer.from(text, 'utf8').equals(bytes)) return
   const doc = await open(text)
   try {

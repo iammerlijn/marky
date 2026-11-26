@@ -22,8 +22,7 @@ import { outline } from './plugins/outline'
 import { placeholder } from './plugins/placeholder'
 import { slash } from './plugins/slash'
 
-// Serializer settings that gave the fewest changes in the fidelity test
-// (design document, section 3).
+// Serializer settings that gave the fewest changes in the fidelity test.
 const stringifyOptions = {
   bullet: '-',
   emphasis: '_',

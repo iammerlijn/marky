@@ -1,4 +1,4 @@
-// Collapsibles (design document, section 6.3).
+// Collapsibles.
 // Read `<details><summary>Title</summary> … </details>` and `+++ Title` … `+++` (Linear).
 // Write `<details>`. A collapsible that you do not edit keeps its original text (preserve.ts).
 import { wrapIn } from '@milkdown/kit/prose/commands'
