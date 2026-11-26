@@ -1,4 +1,4 @@
-// Visual tests (test plan, sections 2 and 8): screenshots compared with approved images.
+// Visual tests: screenshots compared with approved images.
 // WebKit is the engine of Tauri on macOS and Linux. Run them in the Playwright container,
 // so that fonts and rendering are the same on each machine: `npm run test:visual`.
 import { defineConfig } from '@playwright/test'

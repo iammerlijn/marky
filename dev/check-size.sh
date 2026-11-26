@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fails when the frontend build is larger than the limit (issue 15, design document section 9).
+# Fails when the frontend build is larger than the limit (issue 15).
 # Build first: `npm run build`. Most of dist/ loads only when a document needs it, so the limit
 # is for the download size, not for the start.
 set -euo pipefail

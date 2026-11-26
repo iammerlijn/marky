@@ -2,8 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    // Some NVIDIA setups show a blank window with the DMA-BUF renderer of WebKitGTK
-    // (design document, section 12).
+    // Some NVIDIA setups show a blank window with the DMA-BUF renderer of WebKitGTK.
     #[cfg(target_os = "linux")]
     if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
         // SAFETY: no other thread runs yet.

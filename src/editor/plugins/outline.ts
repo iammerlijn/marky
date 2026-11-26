@@ -1,4 +1,4 @@
-// The outline (design document, section 4.2): a rail at the left edge with one dash for each
+// The outline: a rail at the left edge with one dash for each
 // heading. Hover over the rail, or focus it and press Enter, to open a list of the headings.
 // Arrow keys move in the list, Enter goes to the heading, Escape closes the list.
 import type { Node } from '@milkdown/kit/prose/model'

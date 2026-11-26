@@ -1,4 +1,4 @@
-// Benchmark for the performance targets (design document, section 9), in the browser engine.
+// Benchmark for the performance targets, in the browser engine.
 // The result is in document.body.dataset.result (JSON). See dev/bench.mjs.
 import '@fontsource/inter/400.css'
 import '@fontsource/inter/600.css'

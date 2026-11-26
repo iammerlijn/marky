@@ -1,4 +1,4 @@
-// Front matter (design document, section 6.5): YAML between `---` lines shows as a panel
+// Front matter: YAML between `---` lines shows as a panel
 // above the document. A front matter that you do not edit keeps its original text (preserve.ts).
 import type { Node } from '@milkdown/kit/prose/model'
 import type { EditorView, NodeView } from '@milkdown/kit/prose/view'

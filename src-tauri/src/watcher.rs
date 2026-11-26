@@ -1,4 +1,4 @@
-// File watch (design document, sections 4.1 and 4.3).
+// File watch.
 use crate::files;
 use notify::{Config, Event, EventKind, PollWatcher, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;

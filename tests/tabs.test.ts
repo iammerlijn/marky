@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// Test plan, section 7 (tabs) and the external-change cases of section 6.
+// Tabs, and changes to an open file by another app.
 import { editorViewCtx } from '@milkdown/kit/core'
 import { undo } from '@milkdown/kit/prose/history'
 import { TextSelection } from '@milkdown/kit/prose/state'
