@@ -1,4 +1,4 @@
-// The app window (design document, sections 4.2 and 7).
+// The app window.
 import '@fontsource/inter/400.css'
 import '@fontsource/inter/600.css'
 import '@fontsource/jetbrains-mono/400.css'
@@ -24,8 +24,8 @@ import { Tabs, type CloseAnswer, type Tab } from './tabs'
 
 // For dev/measure-app.sh (see bench_mark at the end of this file).
 void invoke('bench_mark', { label: 'script' })
-// A font loads only when text uses it. Then the layout of a long document is done again (design
-// document, section 9). So load the fonts now, and wait for them before the first file opens.
+// A font loads only when text uses it. Then the layout of a long document is done again.
+// So load the fonts now, and wait for them before the first file opens.
 const fonts = Promise.all(['400 1em Inter', '600 1em Inter', "400 1em 'JetBrains Mono'"].map((f) => document.fonts.load(f)))
 const appWindow = getCurrentWindow()
 // macOS hides the window buttons in full screen: then the tab bar needs no room for them.
@@ -39,7 +39,7 @@ const isFirstWindow = appWindow.label === 'main'
 const editorRoot = document.getElementById('editor')!
 // Check for unsaved edits a short time after a change. The editor calls it for each new document.
 // Not a check at each frame: a frame loop makes WebKit draw at each display refresh, and costs
-// CPU time when nothing changes (design document, section 9).
+// CPU time when nothing changes.
 let timer: ReturnType<typeof setTimeout> | undefined
 const checkDirty = () => {
   clearTimeout(timer)

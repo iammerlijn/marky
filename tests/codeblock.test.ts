@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// Code blocks and Mermaid (design document, sections 6.2 and 6.4; test plan, sections 5.3 and 5.4).
+// Code blocks and Mermaid.
 import { TextSelection } from '@milkdown/kit/prose/state'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { loaders } from '../src/editor/plugins/codeblock'

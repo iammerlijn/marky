@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// The `/` menu (design document, section 6.8).
+// The `/` menu.
 import { TextSelection } from '@milkdown/kit/prose/state'
 import type { EditorView } from '@milkdown/kit/prose/view'
 import { afterEach, describe, expect, test } from 'vitest'

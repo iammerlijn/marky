@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// Test plan, section 8: shortcuts use Cmd on macOS and Ctrl on Linux.
+// Shortcuts use Cmd on macOS and Ctrl on Linux.
 import { describe, expect, test } from 'vitest'
 import { modLabel, shortcut } from '../src/app/keys'
 

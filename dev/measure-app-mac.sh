@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Memory of the release app on macOS (design document, section 9). The macOS version of
-# dev/measure-app.sh. Build first: `npx tauri build --no-bundle`.
+# Memory of the release app on macOS. The macOS version of dev/measure-app.sh.
+# Build first: `npx tauri build --no-bundle`.
 #
 # The value is the physical footprint (the "Memory" column of Activity Monitor) of the app and of
 # the three WebKit processes that it starts. It is valid only while the window is in front: macOS

@@ -1,4 +1,4 @@
-// Code blocks and Mermaid diagrams (design document, sections 6.2 and 6.4).
+// Code blocks and Mermaid diagrams.
 // Highlighting is a set of decorations: it does not change the document or the file.
 // Shiki loads each language only when a code block uses it. Mermaid loads only when the
 // first diagram is visible.
@@ -113,7 +113,7 @@ function decorations(doc: Node, view: EditorView | null): DecorationSet {
 }
 
 // After an edit, only the code blocks in the changed ranges get new decorations. A full
-// walk of a long document at each key is too slow (design document, section 9).
+// walk of a long document at each key is too slow.
 function update(tr: Transaction, set: DecorationSet, view: EditorView | null): DecorationSet {
   let next = set.map(tr.mapping, tr.doc)
   for (const [pos, node] of changedNodes(tr, 'code_block')) {

@@ -1,6 +1,6 @@
 import { Mark, type Node } from '@milkdown/kit/prose/model'
 
-// Block-preserving save (design document, section 5).
+// Block-preserving save.
 //
 // A file is a list of top-level blocks with the original text between them (the gaps).
 // At save, each top-level editor node that is equal to an original node writes the original

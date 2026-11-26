@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// Test plan, section 4: an edit changes only the edited blocks.
+// An edit changes only the edited blocks.
 import type { Node } from '@milkdown/kit/prose/model'
 import { TextSelection } from '@milkdown/kit/prose/state'
 import { undo } from '@milkdown/kit/prose/history'

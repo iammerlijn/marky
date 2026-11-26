@@ -1,0 +1,59 @@
+name: Bug report
+description: Something does not work, or Marky changed a file in a way that it must not.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Tell what you expected and what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      placeholder: |
+        1. Open the file below.
+        2. Edit the second table cell.
+        3. Save.
+    validations:
+      required: true
+  - type: textarea
+    id: file
+    attributes:
+      label: Markdown file
+      description: The smallest markdown file that shows the problem. Remove private content first.
+      render: markdown
+  - type: textarea
+    id: diff
+    attributes:
+      label: Diff after the save
+      description: If the save changed lines that you did not edit, paste the output of `git diff`.
+      render: diff
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - .dmg
+        - .deb
+        - Flatpak
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Marky version
+      description: "macOS: Marky > About Marky. Flatpak: `flatpak info nl.marky.Marky`."
+      placeholder: "0.1.0"

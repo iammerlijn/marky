@@ -24,14 +24,13 @@ import { outline } from './plugins/outline'
 import { placeholder } from './plugins/placeholder'
 import { slash } from './plugins/slash'
 
-// Serializer settings that gave the fewest changes in the fidelity test
-// (design document, section 3).
+// Serializer settings that gave the fewest changes in the fidelity test.
 const stringifyOptions = {
   bullet: '-',
   emphasis: '_',
   strong: '*',
   listItemIndent: 'one',
-  // A divider is written as `---`, the same as the `/` menu and the shortcut (section 6.8).
+  // A divider is written as `---`, the same as the `/` menu and the shortcut.
   rule: '-',
 } as const
 

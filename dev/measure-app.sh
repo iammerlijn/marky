@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cold start and memory of the release app (design document, section 9). Linux only.
+# Cold start and memory of the release app. Linux only.
 # Build first: `npx tauri build --no-bundle`. No other Marky may run: the app is single-instance.
 # A separate XDG_DATA_HOME makes sure that no saved session opens.
 set -euo pipefail

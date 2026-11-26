@@ -1,4 +1,4 @@
-// App tests in a real Tauri window (test plan, section 2): WebdriverIO with tauri-driver.
+// App tests in a real Tauri window: WebdriverIO with tauri-driver.
 // Linux only: tauri-driver needs WebKitWebDriver (Ubuntu package webkitgtk-webdriver, Debian package webkit2gtk-driver).
 // Build first: `npx tauri build --debug --no-bundle`. Run: `npx wdio run tests/e2e/wdio.conf.ts`
 // (in CI with dbus-run-session and xvfb-run).

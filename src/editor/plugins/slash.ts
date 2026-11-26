@@ -14,7 +14,7 @@ import type { EditorView } from '@milkdown/kit/prose/view'
 import { $prose } from '@milkdown/kit/utils'
 import { wrapInCollapsible } from './collapsible'
 
-// The `/` menu (design document, section 6.8): type `/` in a paragraph to insert a block.
+// The `/` menu: type `/` in a paragraph to insert a block.
 // Type more letters to filter. Arrow keys select, Enter or Tab inserts, Escape closes.
 
 export interface SlashItem {

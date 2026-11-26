@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// Front matter (design document, section 6.5; test plan, sections 4 and 5.5).
+// Front matter.
 import { afterEach, describe, expect, test } from 'vitest'
 import { fieldsOf, setField } from '../src/editor/plugins/fields'
 import { open, type OpenDoc } from './helpers'
