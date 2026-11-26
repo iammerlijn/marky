@@ -2,7 +2,9 @@
 // EditorState, so its content, selection and undo history stay when you change tabs.
 import { closeHistory } from '@milkdown/kit/prose/history'
 import { EditorState, type Plugin } from '@milkdown/kit/prose/state'
+import type { Node } from '@milkdown/kit/prose/model'
 import type { EditorView } from '@milkdown/kit/prose/view'
+import { reloadMeta } from '../editor/plugins/collapsible'
 import { BlockMapError, load, save, type Markdown, type Source } from '../markdown/preserve'
 import type { Backend, SaveError } from './backend'
 
@@ -12,6 +14,8 @@ export interface Tab {
   path: string | null
   // The blocks of the text that the editor started from: the file, or the text of raw mode.
   source: Source
+  // The sources from before the reloads that the undo history can go back to, newest first.
+  older: Source[]
   // The text on disk after the last open or save. The tab has unsaved edits when its text differs.
   saved: string
   version: string
@@ -98,8 +102,22 @@ export class Tabs {
 
   // The text that a save writes now, and if it differs from the file.
   private output(tab: Tab): { text: string; changed: boolean } {
-    const text = tab.rawText ?? save(this.md, tab.source, this.stateOf(tab).doc).text
+    const doc = this.stateOf(tab).doc
+    const text = tab.rawText ?? save(this.md, this.sourceFor(tab, doc), doc).text
     return { text, changed: text !== tab.saved }
+  }
+
+  // An undo of a reload gives back the nodes of the older file. Then a save uses the source with
+  // the most of the nodes, so that it writes the original text and the hidden blocks of that file.
+  private sourceFor(tab: Tab, doc: Node): Source {
+    if (tab.older.length === 0) return tab.source
+    const key = (node: Node) => node.type.name + '\0' + node.textContent
+    const keys = new Set<string>()
+    doc.forEach((node) => keys.add(key(node)))
+    const score = (source: Source) => source.blocks.filter((b) => b.node && keys.has(key(b.node))).length
+    let best = tab.source
+    for (const source of tab.older) if (score(source) > score(best)) best = source
+    return best
   }
 
   async open(path: string): Promise<void> {
@@ -110,7 +128,7 @@ export class Tabs {
     await this.backend.watch(path)
     const raw = read.rawOnly ? read.saved : null
     const banner = read.rawOnly ? 'raw-only' : null
-    const tab: Tab = { id: this.nextId++, path, ...read, dirty: false, scroll: 0, banner, rawText: raw, rawStart: raw }
+    const tab: Tab = { id: this.nextId++, path, ...read, older: [], dirty: false, scroll: 0, banner, rawText: raw, rawStart: raw }
     this.tabs.push(tab)
     this.activate(tab.id)
   }
@@ -121,6 +139,7 @@ export class Tabs {
       id: this.nextId++,
       path: null,
       source,
+      older: [],
       saved: '',
       version: '',
       state: this.stateFor(source),
@@ -251,22 +270,27 @@ export class Tabs {
     // the text from before the reload, and then the edits from before it. A tab without a
     // block map has no edits in its editor state: it gets a new state.
     const keepHistory = !tab.rawOnly && !rawOnly
+    // Keep only some older sources: an undo past them saves with the source of the new file.
+    tab.older = keepHistory ? [tab.source, ...tab.older].slice(0, 10) : []
     Object.assign(tab, { source, saved, version, rawOnly, dirty: false, banner: rawOnly ? 'raw-only' : null })
     if (tab.rawText !== null || rawOnly) tab.rawText = tab.rawStart = saved
     if (tab === this.active) {
       const top = this.scroll.get()
-      if (keepHistory) this.view.dispatch(this.replaceDoc(this.view.state, source))
+      if (keepHistory) this.replaceDoc(source).forEach((tr) => this.view.dispatch(tr(this.view.state)))
       else this.view.updateState(state)
       this.scroll.set(top)
     } else {
-      tab.state = keepHistory ? tab.state.apply(this.replaceDoc(tab.state, source)) : state
+      tab.state = keepHistory ? this.replaceDoc(source).reduce((s, tr) => s.apply(tr(s)), tab.state) : state
     }
     this.emit()
   }
 
   // The nodes of source.doc go into the document unchanged, so a save finds them as clean blocks.
-  private replaceDoc(state: EditorState, source: Source) {
-    return closeHistory(state.tr.replaceWith(0, state.doc.content.size, source.doc.content))
+  // The second transaction closes the undo step, so that typing just after the reload is a new step.
+  private replaceDoc(source: Source) {
+    const replace = (s: EditorState) =>
+      closeHistory(s.tr.replaceWith(0, s.doc.content.size, source.doc.content).setMeta(reloadMeta, true))
+    return [replace, (s: EditorState) => closeHistory(s.tr)]
   }
 
   // Keep mine: the next save writes the edits over the file on disk.
@@ -306,6 +330,7 @@ export class Tabs {
       // their own blocks. Throws a BlockMapError when the text still cannot be mapped.
       tab.source = load(this.md, tab.rawText)
       const state = this.stateFor(tab.source)
+      tab.older = []
       if (tab === this.active) this.view.updateState(state)
       else tab.state = state
     }

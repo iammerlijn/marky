@@ -165,19 +165,26 @@ function mapOpen(tr: Transaction, pos: number): number | null {
   return null
 }
 
+// The collapsibles with the open attribute, as in the file.
+function openOf(doc: Node): number[] {
+  const open: number[] = []
+  doc.descendants((node, pos) => {
+    if (node.type.name === 'collapsible' && /(^|\s)open\b/i.test(node.attrs.attributes)) open.push(pos)
+  })
+  return open
+}
+
+// The meta of a transaction that replaces the document with the file on disk (a reload).
+export const reloadMeta = 'marky-reload'
+
 export const openState = $prose(
   () =>
     new Plugin({
       key: openKey,
       state: {
-        init: (_, state) => {
-          const open: number[] = []
-          state.doc.descendants((node, pos) => {
-            if (node.type.name === 'collapsible' && /(^|\s)open\b/i.test(node.attrs.attributes)) open.push(pos)
-          })
-          return open
-        },
+        init: (_, state) => openOf(state.doc),
         apply(tr, open) {
+          if (tr.getMeta(reloadMeta)) return openOf(tr.doc)
           let next = tr.docChanged ? open.map((pos) => mapOpen(tr, pos)).filter((pos) => pos !== null) : open
           const toggled = tr.getMeta(openKey) as number | undefined
           if (toggled !== undefined) next = next.includes(toggled) ? next.filter((p) => p !== toggled) : [...next, toggled]
