@@ -220,6 +220,7 @@ Typing markdown syntax converts it immediately: `# ` makes a heading, `- ` makes
 - If you open a file that is already open, Marky selects its tab.
 - When the file changes on disk:
   - If the tab has no unsaved edits, reload it immediately and keep the scroll position.
+  - A reload (also **Load from disk**) is one step in the undo history. Undo gives back the text from before the reload, and then the edits from before it. A tab that shows only raw mode (no block map) starts a new history.
   - If the tab has unsaved edits, show a bar: "This file changed on disk" with two buttons, **Keep mine** and **Load from disk**.
 - When you close a tab or the window with unsaved edits, ask to save.
 - At startup, reopen the tabs of the last session.

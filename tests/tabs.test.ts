@@ -298,6 +298,57 @@ describe('changes on disk', () => {
     expect(backend.files.get('/a.md')!.text).toBe('# A\n\nTheirs.\n')
   })
 
+  test('after a reload, undo first undoes the reload, then the edits from before it', async () => {
+    await tabs.open('/a.md')
+    type('Mine ')
+    await tabs.save()
+    const version = backend.write('/a.md', '# A\n\nTheirs.\n')
+    await tabs.changed('/a.md', version)
+    expect(docText()).toBe('ATheirs.')
+    undo(view.state, view.dispatch)
+    expect(docText()).toBe('Mine AText of A.')
+    undo(view.state, view.dispatch)
+    expect(docText()).toBe('AText of A.')
+    // The undone text differs from the file on disk.
+    tabs.refreshDirty()
+    expect(tab('/a.md').dirty).toBe(true)
+  })
+
+  test('an inactive tab keeps its undo history after a reload', async () => {
+    await tabs.open('/a.md')
+    type('Mine ')
+    await tabs.save()
+    await tabs.open('/b.md')
+    const version = backend.write('/a.md', '# A\n\nTheirs.\n')
+    await tabs.changed('/a.md', version)
+    tabs.activate(tab('/a.md').id)
+    undo(view.state, view.dispatch)
+    expect(docText()).toBe('Mine AText of A.')
+  })
+
+  test('Load from disk can be undone: the edits come back', async () => {
+    await tabs.open('/a.md')
+    type('Mine ')
+    const version = backend.write('/a.md', '# A\n\nTheirs.\n')
+    await tabs.changed('/a.md', version)
+    await tabs.loadFromDisk(tab('/a.md').id)
+    expect(docText()).toBe('ATheirs.')
+    undo(view.state, view.dispatch)
+    expect(docText()).toBe('Mine AText of A.')
+  })
+
+  test('a save after a reload keeps the blocks of the new file', async () => {
+    backend.write('/a.md', '# A\n\nText of A.\n')
+    await tabs.open('/a.md')
+    const version = backend.write('/a.md', '# A\n\n* Theirs\n')
+    await tabs.changed('/a.md', version)
+    tabs.refreshDirty()
+    expect(tab('/a.md').dirty).toBe(false)
+    type('x')
+    await tabs.save()
+    expect(backend.files.get('/a.md')!.text).toBe('# xA\n\n* Theirs\n')
+  })
+
   test('Keep mine: the next save writes my edits', async () => {
     await tabs.open('/a.md')
     type('Mine ')
