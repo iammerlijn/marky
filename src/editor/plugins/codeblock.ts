@@ -34,6 +34,13 @@ export function workerTokenizer(): Tokenize {
             worker = null
           }, WORKER_IDLE_MS)
         }
+        // A worker that cannot start shows plain code. The next request starts a new worker.
+        started.onerror = () => {
+          started.terminate()
+          worker = null
+          for (const settle of pending.values()) settle(null)
+          pending.clear()
+        }
         worker = started
       }
       pending.set(++next, resolve)
@@ -57,6 +64,19 @@ const requested = new WeakSet<Node>()
 
 const highlightKey = new PluginKey<DecorationSet>('marky-highlight')
 
+// One update for all the replies that come before the next frame, not one for each block.
+const refreshes = new WeakMap<EditorView, number>()
+function refresh(view: EditorView) {
+  if (refreshes.has(view)) return
+  refreshes.set(
+    view,
+    requestAnimationFrame(() => {
+      refreshes.delete(view)
+      if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(highlightKey, true))
+    }),
+  )
+}
+
 const highlighted = (node: Node) => {
   const language = String(node.attrs.language ?? '').toLowerCase()
   return language !== 'mermaid' && languageModule(language) ? language : null
@@ -74,7 +94,7 @@ function blockDecorations(node: Node, pos: number, view: EditorView | null, old:
     void loaders.tokenize(node.textContent, language).then((spans) => {
       if (!spans) return
       cache.set(node, spans)
-      if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(highlightKey, true))
+      refresh(view)
     })
   }
   return old.find(pos, pos + node.nodeSize)
@@ -83,9 +103,9 @@ function blockDecorations(node: Node, pos: number, view: EditorView | null, old:
 function decorations(doc: Node, view: EditorView | null, old: DecorationSet): DecorationSet {
   const list: Decoration[] = []
   doc.descendants((node, pos) => {
-    if (node.type.name !== 'code_block') return true
-    list.push(...blockDecorations(node, pos, view, old))
-    return false
+    if (node.type.name === 'code_block') list.push(...blockDecorations(node, pos, view, old))
+    // A code block is never inside a paragraph or a heading: do not walk their text.
+    return !node.isTextblock
   })
   return DecorationSet.create(doc, list)
 }

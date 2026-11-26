@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Code blocks and Mermaid.
-import { TextSelection } from '@milkdown/kit/prose/state'
+import { EditorState, TextSelection } from '@milkdown/kit/prose/state'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { loaders, WORKER_IDLE_MS, workerTokenizer } from '../src/editor/plugins/codeblock'
 import { open, type OpenDoc } from './helpers'
@@ -79,6 +79,45 @@ describe('code blocks', () => {
     }
   })
 
+  test('spans that arrive while another tab is active show when the tab is active again', async () => {
+    doc = await open('```ts\nconst a = 1\n```\n')
+    const { view } = doc
+    const styled = () => view.dom.querySelectorAll('.code-block code span[style]').length
+    await vi.waitFor(() => expect(styled()).toBeGreaterThan(0), { timeout: 5000 })
+    const original = loaders.tokenize
+    let reply: () => void = () => {}
+    loaders.tokenize = (code, language) => new Promise((resolve) => (reply = () => void original(code, language).then(resolve)))
+    try {
+      view.dispatch(view.state.tr.insertText(' + b', view.state.doc.firstChild!.nodeSize - 1))
+      const edited = view.state
+      const colorsOf = () => [...view.dom.querySelectorAll<HTMLElement>('.code-block code span[style]')].map((s) => s.textContent)
+      // The same swap that a tab change does.
+      view.updateState(EditorState.create({ doc: doc.parse('Other tab.\n'), plugins: view.state.plugins }))
+      reply()
+      await new Promise((r) => setTimeout(r, 100))
+      view.updateState(edited)
+      await vi.waitFor(() => expect(colorsOf().join('')).toBe('const a = 1 + b'))
+    } finally {
+      loaders.tokenize = original
+    }
+  })
+
+  test('replies that come together give one update, not one for each code block', async () => {
+    const original = loaders.tokenize
+    const replies: (() => void)[] = []
+    loaders.tokenize = (code, language) => new Promise((resolve) => replies.push(() => void original(code, language).then(resolve)))
+    try {
+      doc = await open('```ts\na\n```\n\n```ts\nb\n```\n\n```ts\nc\n```\n')
+      await vi.waitFor(() => expect(replies).toHaveLength(3))
+      const dispatch = vi.spyOn(doc.view, 'dispatch')
+      replies.forEach((reply) => reply())
+      await vi.waitFor(() => expect(doc.view.dom.querySelectorAll('.code-block code span[style]')).toHaveLength(3))
+      expect(dispatch.mock.calls.filter(([tr]) => tr.getMeta('marky-highlight$'))).toHaveLength(1)
+    } finally {
+      loaders.tokenize = original
+    }
+  })
+
   test('a short name of a language (py) is highlighted', async () => {
     doc = await open('```py\ndef f():\n    return 1\n```\n')
     await vi.waitFor(() => expect(doc.view.dom.querySelectorAll('.code-block code span[style]').length).toBeGreaterThan(2), {
@@ -141,6 +180,24 @@ describe('highlight worker', () => {
     await tokenize('z', 'ts')
     expect(workers).toHaveLength(2)
     expect(workers[1]).toEqual({ terminated: false, requests: 1 })
+  })
+
+  test('a worker that cannot start gives plain code, and the next request starts a new worker', async () => {
+    vi.stubGlobal(
+      'Worker',
+      class extends FakeWorker {
+        onerror: (() => void) | null = null
+        postMessage() {
+          this.state.requests++
+          void Promise.resolve().then(() => this.onerror!())
+        }
+      },
+    )
+    const tokenize = workerTokenizer()
+    expect(await tokenize('x', 'ts')).toBeNull()
+    expect(workers[0].terminated).toBe(true)
+    await tokenize('y', 'ts')
+    expect(workers).toHaveLength(2)
   })
 })
 
