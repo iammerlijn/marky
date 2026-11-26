@@ -1,7 +1,6 @@
 // Back and forward through the places of a window.
-import { beforeEach, expect, test } from 'vitest'
-import { History } from '../src/app/history'
-import { LIMIT } from '../src/editor/plugins/places'
+import { beforeEach, describe, expect, test } from 'vitest'
+import { History, LIMIT } from '../src/app/history'
 
 interface Place {
   tab: number
@@ -92,4 +91,55 @@ test('when all earlier tabs are closed, back does nothing and the place stays', 
   expect(history.back(at(2), isOpen)).toBeNull()
   open.add(1)
   expect(history.back(at(2), isOpen)).toEqual(at(1))
+})
+
+describe('dropped places', () => {
+  let dropped: Place[]
+  beforeEach(() => {
+    dropped = []
+    history = new History((place) => dropped.push(place))
+  })
+
+  test('a replaced place is dropped', () => {
+    const first = at(1, 0)
+    history.visit(null, first)
+    history.visit(at(1, 5), at(2))
+    expect(dropped).toEqual([first])
+  })
+
+  test('the forward places are dropped by a new jump', () => {
+    history.visit(null, at(1))
+    history.visit(at(1), at(2))
+    // Back keeps the place now as the forward place.
+    const two = at(2, 7)
+    history.back(two, isOpen)
+    dropped = []
+    history.visit(at(1), at(3))
+    expect(dropped).toContain(two)
+  })
+
+  test('the place now is dropped when back has nowhere to go', () => {
+    history.visit(null, at(1))
+    const here = at(1, 9)
+    expect(history.back(here, isOpen)).toBeNull()
+    expect(dropped).toEqual([here])
+  })
+
+  test('the places of a closed tab are dropped, and back goes to the place before them', () => {
+    history.visit(null, at(1, 1))
+    history.visit(at(1, 1), at(2))
+    history.visit(at(2), at(1, 3))
+    history.visit(at(1, 3), at(2))
+    dropped = []
+    history.forget(2)
+    expect(dropped.map((p) => p.tab)).toEqual([2, 2])
+    expect(history.size).toBe(2)
+    expect(history.back(at(1, 3), isOpen)).toEqual(at(1, 1))
+  })
+
+  test('the oldest places are dropped at the limit', () => {
+    history.visit(null, at(1, 0))
+    for (let i = 1; i <= LIMIT + 50; i++) history.visit(at(1, i - 1), at(1, i))
+    expect(history.size).toBe(LIMIT)
+  })
 })

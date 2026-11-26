@@ -3,7 +3,8 @@
 import { EditorState } from '@milkdown/kit/prose/state'
 import { afterEach, expect, test } from 'vitest'
 import { reloadMeta } from '../src/editor/plugins/collapsible'
-import { LIMIT, anchor, followed, positionOf, restore } from '../src/editor/plugins/places'
+import { History, LIMIT } from '../src/app/history'
+import { anchor, followed, positionOf, release, restore, type Anchor } from '../src/editor/plugins/places'
 import { open, type OpenDoc } from './helpers'
 
 let doc: OpenDoc
@@ -42,14 +43,41 @@ test('in a new state of the tab (back from raw mode), the old number stays', asy
   expect(positionOf(doc.view.state, at)).toBe(old)
 })
 
-test('many edits keep no list of edits, and only the newest anchors follow the edits', async () => {
+test('many edits keep no list of edits', async () => {
   doc = await open('# A\n\n# B\n')
   const first = anchor(doc.view.state, find('B'))
   for (let i = 0; i < 1000; i++) doc.view.dispatch(doc.view.state.tr.insertText('x', find('A')))
   expect(followed(doc.view.state)).toBe(1)
   expect(positionOf(doc.view.state, first)).toBe(find('B'))
-  for (let i = 0; i < LIMIT + 50; i++) anchor(doc.view.state)
-  expect(followed(doc.view.state)).toBe(LIMIT)
+  release(first)
+  expect(followed(doc.view.state)).toBe(0)
+})
+
+// The same steps as src/app/main.ts: each outline jump saves the place before and after it.
+test('after 150 jumps in one tab, each place in the history follows a later edit', async () => {
+  doc = await open('# A\n\n' + 'word '.repeat(100) + '\n')
+  interface Place {
+    tab: number
+    at: Anchor
+  }
+  const history = new History<Place>((place) => release(place.at))
+  const place = (pos: number): Place => ({ tab: 1, at: anchor(doc.view.state, pos) })
+  const start = find('word')
+  const posOf = (i: number) => start + (i % 200)
+  history.visit(null, place(posOf(0)))
+  for (let i = 1; i <= 150; i++) history.visit(place(posOf(i) + 1), place(posOf(i)))
+  // Dropped places released their anchors.
+  expect(followed(doc.view.state)).toBe(history.size)
+  expect(history.size).toBe(LIMIT)
+
+  doc.view.dispatch(doc.view.state.tr.insertText('New ', find('A')))
+  const seen: number[] = []
+  // As in main.ts, each back gets a new place for the position now.
+  for (let next; (next = history.back(place(doc.view.state.selection.head), () => true)); ) seen.push(positionOf(doc.view.state, next.at))
+  // The history keeps the place before each of the newest 99 jumps. Each moved with the 4 new characters.
+  const jumps = Array.from({ length: LIMIT - 1 }, (_, k) => 150 - k)
+  expect(seen).toEqual(jumps.map((i) => posOf(i) + 1 + 4))
+  expect(followed(doc.view.state)).toBe(history.size)
 })
 
 test('restore puts the cursor at the place and opens the closed collapsible around it', async () => {

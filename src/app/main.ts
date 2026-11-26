@@ -15,7 +15,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message, open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { mount } from 'svelte'
 import { JUMP_EVENT } from '../editor/plugins/outline'
-import { anchor, restore, type Anchor } from '../editor/plugins/places'
+import { anchor, release, restore, type Anchor } from '../editor/plugins/places'
 import { createEditor, markdownOf } from '../editor/setup'
 import App from './App.svelte'
 import { onFileChanged, onOpenFiles, tauriBackend } from './backend'
@@ -207,12 +207,17 @@ interface Place {
   at: Anchor
   scroll: number
 }
-const history = new History<Place>()
+// A dropped place releases its anchor, so that its position stops following the edits.
+const history = new History<Place>((place) => release(place.at))
 let shownTab: Tab | null = null
+let openTabs = new Set<number>()
 let travelling = false
 const here = (): Place | null =>
   tabs.active && { tab: tabs.active.id, at: anchor(view.state), scroll: window.scrollY }
 tabs.subscribe(() => {
+  const ids = new Set(tabs.tabs.map((t) => t.id))
+  for (const id of openTabs) if (!ids.has(id)) history.forget(id)
+  openTabs = ids
   const previous = shownTab
   if (tabs.active === previous) return
   shownTab = tabs.active

@@ -7,19 +7,25 @@ import { openAround, reloadMeta } from './collapsible'
 
 export interface Anchor {
   pos: number
+  // The list of the state that moves this anchor.
+  list: Anchor[]
 }
 
-// Each edit moves the newest anchors of a state, so no list of edits is kept. An older anchor
-// keeps its last position. The history also keeps no more places than this (src/app/history.ts).
-export const LIMIT = 100
+// Each edit moves the anchors of a state, so no list of edits is kept. The history releases an
+// anchor when it drops its place, so the list is not longer than the history (src/app/history.ts).
 const key = new PluginKey<Anchor[]>('marky-places')
 
 export function anchor(state: EditorState, pos = state.selection.head): Anchor {
-  const at = { pos }
-  const anchors = key.getState(state)!
-  anchors.push(at)
-  if (anchors.length > LIMIT) anchors.shift()
+  const list = key.getState(state)!
+  const at = { pos, list }
+  list.push(at)
   return at
+}
+
+// The anchor stops following the edits.
+export function release(at: Anchor) {
+  const index = at.list.indexOf(at)
+  if (index >= 0) at.list.splice(index, 1)
 }
 
 // The number of anchors that follow the edits of the state.
