@@ -1,5 +1,6 @@
 // Tabs (design document, sections 4.2 and 7). One editor view; each tab keeps its own
 // EditorState, so its content, selection and undo history stay when you change tabs.
+import { closeHistory } from '@milkdown/kit/prose/history'
 import { EditorState, type Plugin } from '@milkdown/kit/prose/state'
 import type { EditorView } from '@milkdown/kit/prose/view'
 import { BlockMapError, load, save, type Markdown, type Source } from '../markdown/preserve'
@@ -246,16 +247,26 @@ export class Tabs {
       this.emit()
       return
     }
+    // The new file replaces the document in one step of the undo history, so undo gives back
+    // the text from before the reload, and then the edits from before it. A tab without a
+    // block map has no edits in its editor state: it gets a new state.
+    const keepHistory = !tab.rawOnly && !rawOnly
     Object.assign(tab, { source, saved, version, rawOnly, dirty: false, banner: rawOnly ? 'raw-only' : null })
     if (tab.rawText !== null || rawOnly) tab.rawText = tab.rawStart = saved
     if (tab === this.active) {
       const top = this.scroll.get()
-      this.view.updateState(state)
+      if (keepHistory) this.view.dispatch(this.replaceDoc(this.view.state, source))
+      else this.view.updateState(state)
       this.scroll.set(top)
     } else {
-      tab.state = state
+      tab.state = keepHistory ? tab.state.apply(this.replaceDoc(tab.state, source)) : state
     }
     this.emit()
+  }
+
+  // The nodes of source.doc go into the document unchanged, so a save finds them as clean blocks.
+  private replaceDoc(state: EditorState, source: Source) {
+    return closeHistory(state.tr.replaceWith(0, state.doc.content.size, source.doc.content))
   }
 
   // Keep mine: the next save writes the edits over the file on disk.

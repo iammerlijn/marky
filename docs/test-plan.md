@@ -155,6 +155,7 @@ Why both: the public corpus makes the tests repeatable in CI. The private corpus
 | Stop the app (kill) during a save | The file is the old version or the new version, never half of a file. |
 | Save when the disk is full | Marky shows an error. The original file does not change. |
 | Another app changes the file, and the tab has no unsaved edits | The tab reloads and keeps the scroll position. |
+| Undo after a reload, or after Load from disk | The first undo gives back the text from before the reload. The next undos undo the edits from before it. |
 | Another app changes the file, and the tab has unsaved edits | Marky shows the "changed on disk" bar. It does not overwrite anything. |
 | Another app changes the file between the last read and the save | The save stops with a conflict (content hash check). |
 | Marky saves the file itself | The file watcher does not show a "changed on disk" bar. |
