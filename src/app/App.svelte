@@ -202,28 +202,21 @@
     cursor: pointer;
   }
   .tab-name {
-    padding: 0 2px 0 12px;
+    padding: 0 6px 0 12px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* The close cross shows on hover. The dot of unsaved edits always shows. */
   .tab-close {
     display: grid;
     place-items: center;
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     padding: 0;
-    margin-right: 4px;
+    margin-right: 6px;
     border-radius: 4px;
     font-weight: 400;
     line-height: 1;
-    visibility: hidden;
-  }
-  .tab:hover .tab-close,
-  .tab-close.dirty,
-  .tab-close:focus-visible {
-    visibility: visible;
   }
   .tab-close:hover {
     background: var(--border);
