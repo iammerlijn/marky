@@ -169,6 +169,8 @@ jobs:
       - if: steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
       - run: npx tauri build --bundles ${{ matrix.bundles }}
+      # tauri build made dist/ with `npm run build`.
+      - run: dev/check-size.sh
       - uses: actions/upload-artifact@v7
         with:
           name: marky-${{ matrix.bundles }}

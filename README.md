@@ -17,7 +17,7 @@ Open a file, edit it, close it. There are no folders, no vaults and no setup.
 - **Real tables.** GFM tables show as grids with a header row, not as pipes and dashes.
 - **Mermaid diagrams.** A ` ```mermaid ` block shows as a diagram. Click it to edit its source. Marky loads Mermaid only when a file has a diagram.
 - **Collapsible sections.** Marky reads `<details>` and `+++` blocks and writes `<details>`.
-- **Code blocks** with Shiki highlighting for about 60 languages, a language label and a copy button.
+- **Code blocks** with Shiki highlighting for about 55 languages, a language label and a copy button.
 - **Front matter** shows as a properties panel above the document. You can edit the fields.
 - **Markdown shortcuts while you type.** `# ` makes a heading, `- [ ] ` makes a task, and `/` opens a menu to insert a table, a diagram, a collapsible section, a code block or an image.
 - **Tabs.** Keep several files open in one window. A dot shows unsaved edits. Marky reopens your tabs at the next start.
