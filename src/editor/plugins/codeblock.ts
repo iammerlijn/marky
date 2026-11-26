@@ -153,7 +153,10 @@ const highlight = $prose(() => {
   })
 })
 
-// The code block that contains the cursor gets the class `is-editing`.
+// The code block that contains the anchor of the selection gets the class `is-editing`: a
+// Mermaid block then shows its source. The anchor does not move during a drag or Shift+Arrow,
+// so a selection that goes across a block does not show its source. That would move the text
+// below the pointer during the drag.
 const editingKey = new PluginKey('marky-code-editing')
 const editing = $prose(
   () =>
@@ -161,11 +164,11 @@ const editing = $prose(
       key: editingKey,
       props: {
         decorations(state) {
-          const { $from } = state.selection
-          for (let depth = $from.depth; depth > 0; depth--) {
-            const node = $from.node(depth)
+          const { $anchor } = state.selection
+          for (let depth = $anchor.depth; depth > 0; depth--) {
+            const node = $anchor.node(depth)
             if (node.type.name === 'code_block') {
-              const pos = $from.before(depth)
+              const pos = $anchor.before(depth)
               return DecorationSet.create(state.doc, [Decoration.node(pos, pos + node.nodeSize, { class: 'is-editing' })])
             }
           }
@@ -266,8 +269,10 @@ class CodeBlockView implements NodeView {
     // A change of the language to or from Mermaid needs a new view.
     if ((String(node.attrs.language).toLowerCase() === 'mermaid') !== this.isMermaid) return false
     this.node = node
-    this.dom.dataset.language = node.attrs.language || ''
-    this.label.textContent = node.attrs.language || 'Text'
+    // Change the DOM only for a new language: a new decoration also calls update().
+    const language = node.attrs.language || ''
+    if (this.dom.dataset.language !== language) this.dom.dataset.language = language
+    if (this.label.textContent !== (language || 'Text')) this.label.textContent = language || 'Text'
     if (this.diagram && this.visible && node.textContent !== this.rendered) this.schedule(300)
     return true
   }

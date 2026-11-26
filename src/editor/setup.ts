@@ -21,6 +21,7 @@ import { frontmatter } from './plugins/frontmatter'
 import { outline } from './plugins/outline'
 import { placeholder } from './plugins/placeholder'
 import { slash } from './plugins/slash'
+import { withTableSelection } from './plugins/tables'
 
 // Serializer settings that gave the fewest changes in the fidelity test.
 const stringifyOptions = {
@@ -41,7 +42,7 @@ export async function createEditor(root: HTMLElement, text = ''): Promise<Editor
       ctx.set(remarkGFMPlugin.options.key, { tablePipeAlign: false })
     })
     .use(commonmark)
-    .use(gfm)
+    .use(withTableSelection(gfm))
     .use(history)
     .use(frontmatter)
     .use(collapsible)
