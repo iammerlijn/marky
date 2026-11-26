@@ -1,113 +1,111 @@
 // Code blocks and Mermaid diagrams.
 // Highlighting is a set of decorations: it does not change the document or the file.
-// Shiki loads each language only when a code block uses it. Mermaid loads only when the
-// first diagram is visible.
+// Shiki runs in a worker, and loads each language only when a code block uses it. Mermaid
+// loads only when the first diagram is visible.
 import { codeBlockSchema } from '@milkdown/kit/preset/commonmark'
 import type { Node } from '@milkdown/kit/prose/model'
 import { Plugin, PluginKey, TextSelection, type Transaction } from '@milkdown/kit/prose/state'
 import { Decoration, DecorationSet, type EditorView, type NodeView } from '@milkdown/kit/prose/view'
 import { $prose, $view } from '@milkdown/kit/utils'
-import type { HighlighterCore } from 'shiki/core'
 import { changedNodes } from './changed'
+import { createTokenizer, type Span, type Tokenize } from './highlighter'
 import { languageModule } from './languages'
 
-// Replaced in tests, to count the loads.
-export const loaders = {
-  shiki: async (): Promise<HighlighterCore> => {
-    const [{ createHighlighterCore }, { createJavaScriptRegexEngine }] = await Promise.all([
-      import('shiki/core'),
-      import('shiki/engine/javascript'),
-    ])
-    return createHighlighterCore({
-      themes: [import('shiki/themes/github-light.mjs'), import('shiki/themes/github-dark.mjs')],
-      langs: [],
-      engine: createJavaScriptRegexEngine(),
+// The worker stops when no code block needed it for this time. Then WebKit gives its memory
+// back: about 45 MB after one TypeScript block (issue 2).
+export const WORKER_IDLE_MS = 10_000
+
+export function workerTokenizer(): Tokenize {
+  let worker: Worker | null = null
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let next = 0
+  const pending = new Map<number, (spans: Span[] | null) => void>()
+  return (code, language) =>
+    new Promise((resolve) => {
+      clearTimeout(timer)
+      if (!worker) {
+        const started = new Worker(new URL('./highlight.worker.ts', import.meta.url), { type: 'module' })
+        started.onmessage = ({ data }: MessageEvent<{ id: number; spans: Span[] | null }>) => {
+          pending.get(data.id)!(data.spans)
+          pending.delete(data.id)
+          if (pending.size > 0) return
+          timer = setTimeout(() => {
+            started.terminate()
+            worker = null
+          }, WORKER_IDLE_MS)
+        }
+        // A worker that cannot start shows plain code. The next request starts a new worker.
+        started.onerror = () => {
+          started.terminate()
+          worker = null
+          for (const settle of pending.values()) settle(null)
+          pending.clear()
+        }
+        worker = started
+      }
+      pending.set(++next, resolve)
+      worker.postMessage({ id: next, code, language })
     })
-  },
-  language: async (name: string) => languageModule(name),
+}
+
+let tokenizer: Tokenize | null = null
+
+// Replaced in tests, to count the loads. Tests run in happy-dom, which has no Worker.
+export const loaders = {
+  tokenize: ((code, language) =>
+    (tokenizer ??= typeof Worker === 'undefined' ? createTokenizer() : workerTokenizer())(code, language)) as Tokenize,
   mermaid: async () => (await import('mermaid')).default,
 }
 
-let highlighter: Promise<HighlighterCore> | null = null
-const languages = new Map<string, Promise<boolean>>()
-
-// Loads the language once. Resolves to false for an unknown language.
-function loadLanguage(name: string): Promise<boolean> {
-  let loading = languages.get(name)
-  if (!loading) {
-    highlighter ??= loaders.shiki()
-    loading = Promise.all([highlighter, loaders.language(name)]).then(async ([h, language]) => {
-      if (!language) return false
-      await h.loadLanguage(language)
-      return true
-    })
-    languages.set(name, loading)
-  }
-  return loading
-}
-
-interface Span {
-  from: number
-  to: number
-  style: string
-}
-
-// Tokens for each code block node. An unchanged node keeps its identity, so it is not
+// Spans for each code block node. An unchanged node keeps its identity, so it is not
 // highlighted again after an edit in another block.
 const cache = new WeakMap<Node, Span[]>()
-let ready: HighlighterCore | null = null
-const readyLanguages = new Set<string>()
-
-function spans(node: Node): Span[] | null {
-  const language = String(node.attrs.language ?? '').toLowerCase()
-  if (!language || language === 'mermaid' || !ready || !readyLanguages.has(language)) return null
-  let result = cache.get(node)
-  if (!result) {
-    result = []
-    const { tokens } = ready.codeToTokens(node.textContent, {
-      lang: language,
-      themes: { light: 'github-light', dark: 'github-dark' },
-    })
-    // token.offset is the offset in the whole code text.
-    for (const token of tokens.flat()) {
-      const style = Object.entries(token.htmlStyle ?? {})
-        .map(([key, value]) => `${key}:${value}`)
-        .join(';')
-      if (style) result.push({ from: token.offset, to: token.offset + token.content.length, style })
-    }
-    cache.set(node, result)
-  }
-  return result
-}
+const requested = new WeakSet<Node>()
 
 const highlightKey = new PluginKey<DecorationSet>('marky-highlight')
-const waitingFor = new WeakMap<EditorView, Set<string>>()
 
-// The decorations of one code block. Starts the load of its language when it is not ready.
-function blockDecorations(node: Node, pos: number, view: EditorView | null): Decoration[] {
-  const result = spans(node)
-  if (result) return result.map((span) => Decoration.inline(pos + 1 + span.from, pos + 1 + span.to, { style: span.style }))
-  const language = String(node.attrs.language ?? '').toLowerCase()
-  // Each editor waits for the load itself: a load can start in another editor.
-  const waiting = view && (waitingFor.get(view) ?? waitingFor.set(view, new Set()).get(view)!)
-  if (language && language !== 'mermaid' && view && waiting && !waiting.has(language)) {
-    waiting.add(language)
-    void loadLanguage(language).then(async (known) => {
-      if (!known) return
-      ready = await highlighter
-      readyLanguages.add(language)
+// One update for all the replies that come before the next frame, not one for each block.
+const refreshes = new WeakMap<EditorView, number>()
+function refresh(view: EditorView) {
+  if (refreshes.has(view)) return
+  refreshes.set(
+    view,
+    requestAnimationFrame(() => {
+      refreshes.delete(view)
       if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(highlightKey, true))
-    })
-  }
-  return []
+    }),
+  )
 }
 
-function decorations(doc: Node, view: EditorView | null): DecorationSet {
+const highlighted = (node: Node) => {
+  const language = String(node.attrs.language ?? '').toLowerCase()
+  return language !== 'mermaid' && languageModule(language) ? language : null
+}
+
+// The decorations of one code block. When its spans are not ready, it asks the worker for
+// them and keeps the old decorations, so that the colors do not flicker during typing.
+function blockDecorations(node: Node, pos: number, view: EditorView | null, old: DecorationSet): Decoration[] {
+  const result = cache.get(node)
+  if (result) return result.map((span) => Decoration.inline(pos + 1 + span.from, pos + 1 + span.to, { style: span.style }))
+  const language = highlighted(node)
+  if (!language || !view) return []
+  if (!requested.has(node)) {
+    requested.add(node)
+    void loaders.tokenize(node.textContent, language).then((spans) => {
+      if (!spans) return
+      cache.set(node, spans)
+      refresh(view)
+    })
+  }
+  return old.find(pos, pos + node.nodeSize)
+}
+
+function decorations(doc: Node, view: EditorView | null, old: DecorationSet): DecorationSet {
   const list: Decoration[] = []
   doc.descendants((node, pos) => {
-    if (node.type.name !== 'code_block') return true
-    list.push(...blockDecorations(node, pos, view))
-    return false
+    if (node.type.name === 'code_block') list.push(...blockDecorations(node, pos, view, old))
+    // A code block is never inside a paragraph or a heading: do not walk their text.
+    return !node.isTextblock
   })
   return DecorationSet.create(doc, list)
 }
@@ -115,10 +113,11 @@ function decorations(doc: Node, view: EditorView | null): DecorationSet {
 // After an edit, only the code blocks in the changed ranges get new decorations. A full
 // walk of a long document at each key is too slow.
 function update(tr: Transaction, set: DecorationSet, view: EditorView | null): DecorationSet {
-  let next = set.map(tr.mapping, tr.doc)
+  const mapped = set.map(tr.mapping, tr.doc)
+  let next = mapped
   for (const [pos, node] of changedNodes(tr, 'code_block')) {
     next = next.remove(next.find(pos, pos + node.nodeSize))
-    next = next.add(tr.doc, blockDecorations(node, pos, view))
+    next = next.add(tr.doc, blockDecorations(node, pos, view, mapped))
   }
   return next
 }
@@ -129,10 +128,14 @@ const highlight = $prose(() => {
     key: highlightKey,
     state: {
       // A new state (a new tab) uses the view of the earlier state.
-      init: (_, state) => decorations(state.doc, current),
-      // A language that finished its load: all code blocks again. An edit: only the changed blocks.
+      init: (_, state) => decorations(state.doc, current, DecorationSet.empty),
+      // Spans that arrived from the worker: all code blocks again. An edit: only the changed blocks.
       apply: (tr, set, _old, state) =>
-        tr.getMeta(highlightKey) ? decorations(state.doc, current) : tr.docChanged ? update(tr, set, current) : set,
+        tr.getMeta(highlightKey)
+          ? decorations(state.doc, current, set.map(tr.mapping, tr.doc))
+          : tr.docChanged
+            ? update(tr, set, current)
+            : set,
     },
     props: {
       decorations: (state) => highlightKey.getState(state),
