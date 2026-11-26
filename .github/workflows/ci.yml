@@ -2,10 +2,14 @@
 name: CI
 
 # Push only for main: a pull request runs the jobs for its branch, so they do not run twice.
+# A change to only the docs or a README does not run CI. Other .md files are test input
+# (tests/corpus, dev/sample.md), so they still run it.
 on:
   push:
     branches: [main]
+    paths-ignore: ['docs/**', '**/README.md']
   pull_request:
+    paths-ignore: ['docs/**', '**/README.md']
 
 # A new commit on a pull request stops the run of the previous commit. Runs on main all finish,
 # each in its own group: a merge does not wait for the run of the merge before it.
