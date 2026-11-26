@@ -2,14 +2,16 @@
 name: CI
 
 # Push only for main: a pull request runs the jobs for its branch, so they do not run twice.
-# A change to only the docs or a README does not run CI. Other .md files are test input
-# (tests/corpus, dev/sample.md), so they still run it.
+# A change to only the docs, a README, the issue forms or the license does not run CI. Other .md
+# files are test input (tests/corpus, dev/sample.md), so they still run it.
+# workflow_dispatch: start all jobs by hand, also the release build, for example on a branch.
 on:
   push:
     branches: [main]
-    paths-ignore: ['docs/**', '**/README.md']
+    paths-ignore: ['docs/**', '**/README.md', '.github/ISSUE_TEMPLATE/**', 'LICENSE']
   pull_request:
-    paths-ignore: ['docs/**', '**/README.md']
+    paths-ignore: ['docs/**', '**/README.md', '.github/ISSUE_TEMPLATE/**', 'LICENSE']
+  workflow_dispatch:
 
 # A new commit on a pull request stops the run of the previous commit. Runs on main all finish,
 # each in its own group: a merge does not wait for the run of the merge before it.
@@ -52,22 +54,8 @@ jobs:
         run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - run: cargo test
-        working-directory: src-tauri
-
-  # The Rust crate has macOS-only code (the menu bar, "Open With"). Only cargo test: macOS
-  # runner minutes cost 10 times more on a private repository.
-  rust-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          filter: blob:none
-      - uses: jdx/mise-action@v5
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: npm run build
+      - run: dev/check-size.sh
       - run: cargo test
         working-directory: src-tauri
 
@@ -132,7 +120,10 @@ jobs:
       # The single-instance plugin needs a D-Bus session.
       - run: dbus-run-session -- xvfb-run --auto-servernum npm run test:e2e
 
+  # The release packages. Only main and a start by hand need them, and they are the slowest jobs.
+  # On a pull request, the e2e job already compiles the app.
   build:
+    if: github.event_name != 'pull_request'
     strategy:
       matrix:
         include:
@@ -169,8 +160,6 @@ jobs:
       - if: steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
       - run: npx tauri build --bundles ${{ matrix.bundles }}
-      # tauri build made dist/ with `npm run build`.
-      - run: dev/check-size.sh
       - uses: actions/upload-artifact@v7
         with:
           name: marky-${{ matrix.bundles }}
