@@ -55,5 +55,5 @@ body:
     id: version
     attributes:
       label: Marky version
-      description: "macOS: Marky > About Marky. Flatpak: `flatpak info nl.marky.Marky`."
+      description: "macOS: Marky > About Marky. Flatpak: `flatpak info io.github.iammerlijn.Marky`."
       placeholder: "0.1.0"
