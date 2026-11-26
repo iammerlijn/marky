@@ -28,7 +28,7 @@ const stringifyOptions = {
   emphasis: '_',
   strong: '*',
   listItemIndent: 'one',
-  // A divider is written as `---`, the same as the `/` menu and the shortcut (section 6.8).
+  // A divider is written as `---`, the same as the `/` menu and the shortcut.
   rule: '-',
 } as const
 
