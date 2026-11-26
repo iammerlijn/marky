@@ -50,6 +50,13 @@ pub fn save(path: &Path, settings: &Settings) -> std::io::Result<()> {
     fs::write(path, serde_json::to_string_pretty(settings)?)
 }
 
+// Saves first: `current` changes only when the save works.
+pub fn save_and_set(path: &Path, current: &mut Settings, new: Settings) -> std::io::Result<()> {
+    save(path, &new)?;
+    *current = new;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,5 +106,19 @@ mod tests {
         assert_eq!(native_theme(Theme::System), None);
         assert_eq!(native_theme(Theme::Light), Some(tauri::Theme::Light));
         assert_eq!(native_theme(Theme::Dark), Some(tauri::Theme::Dark));
+    }
+
+    #[test]
+    fn a_failed_save_keeps_the_current_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        // A file where the folder must be: the save fails.
+        let blocker = dir.path().join("config");
+        fs::write(&blocker, "").unwrap();
+        let mut current = Settings::default();
+        let new = Settings { warn_before_quit: false, theme: Theme::Dark };
+        assert!(save_and_set(&blocker.join("settings.json"), &mut current, new.clone()).is_err());
+        assert_eq!(current, Settings::default());
+        save_and_set(&dir.path().join("settings.json"), &mut current, new.clone()).unwrap();
+        assert_eq!(current, new);
     }
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   // The settings window (Cmd+, on macOS, Ctrl+, on Linux). Each change saves at once.
-  import type { About, Settings } from './backend'
+  import { saveOrKeep, type About, type Settings } from './backend'
   import type { Theme } from './theme'
 
   interface Props {
@@ -9,10 +9,11 @@
     showQuit: boolean
     // Linux has no About panel: the settings window shows the information. null on macOS.
     about: About | null
-    onChange: (settings: Settings) => void
+    // Rejects when the save fails. Then the controls show the old settings again.
+    save: (settings: Settings) => Promise<unknown>
   }
 
-  let { initial, showQuit, about, onChange }: Props = $props()
+  let { initial, showQuit, about, save }: Props = $props()
 
   // svelte-ignore state_referenced_locally
   let settings = $state({ ...initial })
@@ -22,9 +23,10 @@
     ['dark', 'Dark'],
   ]
 
-  function change(update: Partial<Settings>) {
+  async function change(update: Partial<Settings>) {
+    const old = settings
     settings = { ...settings, ...update }
-    onChange(settings)
+    settings = await saveOrKeep(old, settings, save)
   }
 </script>
 

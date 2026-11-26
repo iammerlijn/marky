@@ -21,7 +21,7 @@ mount(Settings, {
     about: mac
       ? null
       : { name: 'Marky', version: '0.1.0', copyright: 'Copyright © 2026 iammerlijn', license: 'GPL-3.0', repository: 'https://github.com/iammerlijn/marky' },
-    onChange: (settings: AppSettings) => applyTheme(settings.theme),
+    save: async (settings: AppSettings) => applyTheme(settings.theme),
   },
 })
 await document.fonts.ready

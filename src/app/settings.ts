@@ -4,22 +4,25 @@ import '@fontsource/inter/600.css'
 import '../styles/tokens.css'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { message } from '@tauri-apps/plugin-dialog'
 import { mount } from 'svelte'
 import { getAbout, getSettings, onSettingsChanged, setSettings, type Settings as AppSettings } from './backend'
 import { isMac, shortcut } from './keys'
 import Settings from './Settings.svelte'
-import { applyTheme } from './theme'
+import { followTheme } from './theme'
 
-const settings = await getSettings()
-applyTheme(settings.theme)
-await onSettingsChanged((changed) => applyTheme(changed.theme))
+const settings = await followTheme(getSettings, onSettingsChanged)
 mount(Settings, {
   target: document.body,
   props: {
     initial: settings,
     showQuit: isMac,
     about: isMac ? null : await getAbout(),
-    onChange: (changed: AppSettings) => void setSettings(changed),
+    save: (changed: AppSettings) =>
+      setSettings(changed).catch(async (error) => {
+        await message(`Marky could not save the settings.\n\n${error}`, { kind: 'error' })
+        throw error
+      }),
   },
 })
 

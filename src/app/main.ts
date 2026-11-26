@@ -21,7 +21,7 @@ import { modLabel, shortcut, type Action } from './keys'
 import type { RawEditor } from './raw'
 import { addRecent, recentFiles, removeRecent } from './recent'
 import { Tabs, type CloseAnswer, type Tab } from './tabs'
-import { applyTheme } from './theme'
+import { followTheme } from './theme'
 
 // For dev/measure-app.sh (see bench_mark at the end of this file).
 void invoke('bench_mark', { label: 'script' })
@@ -30,8 +30,7 @@ void invoke('bench_mark', { label: 'script' })
 const fonts = Promise.all(['400 1em Inter', '600 1em Inter', "400 1em 'JetBrains Mono'"].map((f) => document.fonts.load(f)))
 const appWindow = getCurrentWindow()
 // The theme from the settings, before the first diagram renders. The window is still hidden.
-applyTheme((await getSettings()).theme)
-await onSettingsChanged((settings) => applyTheme(settings.theme))
+await followTheme(getSettings, onSettingsChanged)
 // macOS hides the window buttons in full screen: then the tab bar needs no room for them.
 const syncFullscreen = async () =>
   document.documentElement.classList.toggle('fullscreen', await appWindow.isFullscreen())

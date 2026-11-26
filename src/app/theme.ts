@@ -27,3 +27,21 @@ export function onThemeChange(callback: () => void, root = document.documentElem
     observer.disconnect()
   }
 }
+
+// Applies the theme of the settings now and after each change. Subscribes first, so that no
+// change is lost, and a change that comes during the first read wins. Returns the settings.
+export async function followTheme<T extends { theme: Theme }>(
+  read: () => Promise<T>,
+  subscribe: (handler: (settings: T) => void) => Promise<unknown>,
+): Promise<T> {
+  let changed: T | null = null
+  await subscribe((settings) => {
+    changed = settings
+    applyTheme(settings.theme)
+  })
+  const first = await read()
+  // A change during the read is newer than the value that the read returns.
+  const latest = changed ?? first
+  applyTheme(latest.theme)
+  return latest
+}

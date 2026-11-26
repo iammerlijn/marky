@@ -70,3 +70,11 @@ export const setSettings = (settings: Settings) => invoke('set_settings', { sett
 export const onSettingsChanged = (handler: (settings: Settings) => void) =>
   listen<Settings>('settings-changed', ({ payload }) => handler(payload))
 export const getAbout = () => invoke<About>('about')
+
+// A change in the settings window: returns the settings to show. These are the old settings
+// when the save fails, because the backend then keeps the old settings too.
+export const saveOrKeep = (old: Settings, next: Settings, save: (settings: Settings) => Promise<unknown>) =>
+  save(next).then(
+    () => next,
+    () => old,
+  )

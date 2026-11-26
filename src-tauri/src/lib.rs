@@ -26,6 +26,12 @@ struct PendingFiles(Mutex<Vec<String>>);
 // The label of the settings window. It has no tabs, so files and menu actions go to an editor window.
 const SETTINGS_WINDOW: &str = "settings";
 
+// True when `closed` was the last editor window. Then the settings window closes too, so that
+// Marky quits as before: the app ends when the last window closes.
+fn last_editor_closed<'a>(closed: &str, labels: impl IntoIterator<Item = &'a str>) -> bool {
+    closed != SETTINGS_WINDOW && labels.into_iter().all(|label| label == SETTINGS_WINDOW || label == closed)
+}
+
 // The focused editor window, or else the first window.
 fn target_window(app: &AppHandle) -> Option<WebviewWindow> {
     let windows = app.webview_windows();
@@ -56,13 +62,14 @@ fn get_settings(state: State<AppSettings>) -> settings::Settings {
     state.settings.lock().unwrap().clone()
 }
 
-// From the settings window. All windows get the new settings, so that they change the theme at once.
+// From the settings window. Nothing changes when the save fails: the settings window then
+// shows the old values again. All windows get the new settings, so that they change the theme at once.
 #[tauri::command]
 fn set_settings(app: AppHandle, state: State<AppSettings>, settings: settings::Settings) -> Result<(), String> {
+    settings::save_and_set(&state.path, &mut state.settings.lock().unwrap(), settings.clone()).map_err(|e| e.to_string())?;
     app.set_theme(settings::native_theme(settings.theme));
-    *state.settings.lock().unwrap() = settings.clone();
     let _ = app.emit("settings-changed", &settings);
-    settings::save(&state.path, &settings).map_err(|e| e.to_string())
+    Ok(())
 }
 
 #[tauri::command]
@@ -233,6 +240,17 @@ pub fn run() {
                 }
             }
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                let app = window.app_handle();
+                let windows = app.webview_windows();
+                if last_editor_closed(window.label(), windows.keys().map(String::as_str))
+                    && let Some(settings) = windows.get(SETTINGS_WINDOW)
+                {
+                    let _ = settings.close();
+                }
+            }
+        })
         .manage(Watchers::default())
         .manage(PendingFiles(Mutex::new(initial)))
         .invoke_handler(tauri::generate_handler![quit_app, open_file, save_file, create_file, watch, unwatch, new_window, take_pending_files, bench_mark, get_settings, set_settings, about, open_settings])
@@ -246,4 +264,21 @@ pub fn run() {
                 add_pending(_app, paths.collect());
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::last_editor_closed;
+
+    #[test]
+    fn the_settings_window_closes_with_the_last_editor_window() {
+        // The closed window can still be in the list, or not.
+        assert!(last_editor_closed("main", ["main", "settings"]));
+        assert!(last_editor_closed("main", ["settings"]));
+        assert!(last_editor_closed("window-2", ["window-2"]));
+        assert!(!last_editor_closed("main", ["main", "window-2", "settings"]));
+        // Closing the settings window itself does nothing more.
+        assert!(!last_editor_closed("settings", ["main", "settings"]));
+        assert!(!last_editor_closed("settings", ["settings"]));
+    }
 }
