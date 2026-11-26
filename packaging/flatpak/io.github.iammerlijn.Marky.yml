@@ -1,0 +1,50 @@
+# Flatpak of Marky. Build: packaging/flatpak/build.sh
+# No filesystem permission: files come through the document portal (file dialog and
+# "open with"), and the backend polls portal paths for changes.
+id: io.github.iammerlijn.Marky
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node26
+command: marky
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+modules:
+  - name: marky
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node26/bin
+      # The build is offline: the crates and npm packages come from the generated sources.
+      env:
+        CARGO_HOME: /run/build/marky/cargo
+        npm_config_cache: /run/build/marky/flatpak-node/npm-cache
+        npm_config_offline: 'true'
+    build-commands:
+      # Only the packages of the frontend build: the test tools are dev dependencies.
+      - npm ci --offline --omit=dev --ignore-scripts
+      - npm run build
+      - cargo --offline build --release --features tauri/custom-protocol --manifest-path src-tauri/Cargo.toml
+      - install -Dm755 src-tauri/target/release/marky /app/bin/marky
+      - install -Dm644 packaging/flatpak/io.github.iammerlijn.Marky.desktop /app/share/applications/io.github.iammerlijn.Marky.desktop
+      - install -Dm644 packaging/flatpak/io.github.iammerlijn.Marky.metainfo.xml /app/share/metainfo/io.github.iammerlijn.Marky.metainfo.xml
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/io.github.iammerlijn.Marky.png
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - node_modules
+          - src-tauri/target
+          - .git
+          - tests
+          - test-results
+          - .flatpak-builder
+          - packaging/flatpak/build
+          - dist
+      # Made by packaging/flatpak/update-sources.sh. Run it again after a change to a lockfile.
+      - node-sources.json
+      - cargo-sources.json

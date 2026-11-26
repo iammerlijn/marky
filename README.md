@@ -71,6 +71,7 @@ npx tauri dev                    # run the app with live reload
 npx tauri build --bundles dmg    # macOS package
 npx tauri build --bundles deb    # Linux package
 packaging/flatpak/build.sh       # build and install the Flatpak for this user
+packaging/flatpak/update-sources.sh  # make the offline Flatpak sources again after a lockfile change
 ```
 
 ## Tests

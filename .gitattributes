@@ -1,1 +1,2 @@
 tests/corpus/** -text
+packaging/flatpak/*-sources.json linguist-generated
