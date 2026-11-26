@@ -283,7 +283,7 @@ Rules:
 | Open a 5,000-line file | < 1 s (was < 300 ms, see [issue 3](https://github.com/iammerlijn/marky/issues/3)) |
 | Typing delay | < 16 ms (1 frame) |
 | App download | < 15 MB |
-| Memory with 10 tabs open | < 200 MB |
+| Memory with 10 tabs open | < 250 MB (was < 200 MB, see [issue 2](https://github.com/iammerlijn/marky/issues/2)) |
 
 Measure these targets in CI on macOS and Linux for each release.
 
@@ -325,7 +325,7 @@ After this change: 5,000 lines ~980 ms, 1,000 lines ~275 ms (2026-11-26, runs 2 
 | Cold start: process start to the open document, before the paint | ~565 ms (was ~635 ms) | No (< 500 ms) |
 | Cold start to the painted document | ~605 ms (was ~1,645 ms) | No (< 500 ms) |
 | Memory with 1 tab | 254 MB PSS | |
-| Memory with 10 tabs | 280 MB PSS (app 96, WebKit web process 158, network process 25) | No (< 200 MB) |
+| Memory with 10 tabs | 280 MB PSS (app 96, WebKit web process 158, network process 25) | No (< 250 MB) |
 
 **Memory on macOS (2026-11-26, macOS 26.6, Apple Silicon, `dev/measure-app-mac.sh`, [issue 2](https://github.com/iammerlijn/marky/issues/2)):**
 The physical footprint (the "Memory" column of Activity Monitor) of the app and its WebKit
@@ -334,7 +334,7 @@ processes, with the window in front. Median of 3 runs.
 | Metric | Result | Target met? |
 |---|---|---|
 | Memory with 1 tab | ~200 MB (app 27, WebKit GPU process 106, web process 61, network process 5) | |
-| Memory with 10 tabs | ~207 MB (app 28, GPU process 107, web process 66, network process 6) | No (< 200 MB) |
+| Memory with 10 tabs | ~207 MB (app 28, GPU process 107, web process 66, network process 6) | Yes (< 250 MB) |
 
 Where the memory goes (test pages in the same app, window in front):
 
@@ -350,7 +350,8 @@ Where the memory goes (test pages in the same app, window in front):
   highlighter adds ~9 MB for files with code blocks. Each tab adds ~1 MB.
 - Sometimes WebKit starts a second web process for the app. Then the total is up to ~250 MB.
 
-Thus on macOS, WKWebView and the blinking cursor use ~165 MB before Marky's own code.
+Thus on macOS, WKWebView and the blinking cursor use ~165 MB before Marky's own code. Marky
+cannot change this with a public WebKit setting. So the target is < 250 MB, not < 200 MB.
 
 Before 2026-11-26, `src/app/main.ts` checked for a new document at each frame
 (`requestAnimationFrame`). Then WebKit made a new frame at each display refresh, also when
