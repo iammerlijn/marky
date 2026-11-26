@@ -54,8 +54,15 @@ body {
   text-decoration: underline;
 }
 
+/* The editor paints the gaps between blocks with its own selection color: without one, that is
+   the system color. A list item paints over the gaps of its list: two layers of a transparent
+   color, so the list item gets no color of its own. */
+.ProseMirror::selection,
 .ProseMirror ::selection {
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  background: var(--selection);
+}
+.ProseMirror li::selection {
+  background: transparent;
 }
 
 /* The hint in an empty document (plugins/placeholder.ts). */
@@ -157,6 +164,14 @@ body {
 .ProseMirror td > p,
 .ProseMirror th > p {
   margin: 0;
+}
+/* A selected cell is filled (plugins/tables.ts), in place of a stripe for its text. */
+.ProseMirror .selectedCell {
+  background-image: linear-gradient(var(--selection), var(--selection));
+}
+.ProseMirror .selectedCell::selection,
+.ProseMirror .selectedCell ::selection {
+  background: transparent;
 }
 
 .ProseMirror img {

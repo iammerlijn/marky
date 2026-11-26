@@ -6,9 +6,12 @@
 //   is lost.
 // For such a selection, keep the text selection and let the browser extend it. A selection with
 // both ends in one table works as before (for example a cell selection with the mouse).
+// The browser paints a text selection in a table as a stripe for the text of each cell. The cells
+// that such a selection covers get the class `selectedCell`, like the cells of a cell selection.
 import { tableEditingPlugin } from '@milkdown/kit/preset/gfm'
 import type { EditorState, Selection } from '@milkdown/kit/prose/state'
 import { TextSelection } from '@milkdown/kit/prose/state'
+import { Decoration, DecorationSet } from '@milkdown/kit/prose/view'
 import { cellAround, fixTables, inSameTable, tableEditing } from '@milkdown/kit/prose/tables'
 import { $prose } from '@milkdown/kit/utils'
 
@@ -21,12 +24,35 @@ export function leavesTable(selection: Selection): boolean {
   return !anchor || !head || !inSameTable(anchor, head)
 }
 
+// The cells that a text selection covers from the start to the end of their text. A cell has one
+// paragraph, so its text goes from pos + 2 to pos + nodeSize - 2. A selection in one cell does not
+// fill it: there the browser paints it correctly.
+export function coveredCells(state: EditorState): DecorationSet | null {
+  const { selection } = state
+  if (!(selection instanceof TextSelection) || selection.empty) return null
+  const { from, to } = selection
+  const cells: Decoration[] = []
+  state.doc.nodesBetween(from, to, (node, pos) => {
+    const role = node.type.spec.tableRole
+    if (role !== 'cell' && role !== 'header_cell') return true
+    const end = pos + node.nodeSize
+    if (from <= pos + 2 && to >= end - 2 && (from < pos || to > end)) {
+      cells.push(Decoration.node(pos, end, { class: 'selectedCell' }))
+    }
+    return false
+  })
+  return cells.length ? DecorationSet.create(state.doc, cells) : null
+}
+
 const SHIFT_ARROWS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
 
 export const tableSelection = $prose(() => {
   const plugin = tableEditing({ allowTableNodeSelection: true })
   const { appendTransaction } = plugin.spec
-  const { handleKeyDown } = plugin.props
+  const { handleKeyDown, decorations } = plugin.props
+  plugin.props.decorations = function (state) {
+    return decorations!.call(this, state) ?? coveredCells(state)
+  }
   plugin.spec.appendTransaction = (trs, old, state: EditorState) =>
     leavesTable(state.selection) ? fixTables(state, old) : appendTransaction!.call(plugin, trs, old, state)
   plugin.props.handleKeyDown = function (view, event) {

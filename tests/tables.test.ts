@@ -62,3 +62,39 @@ describe('selection across a table', () => {
     expect(view.dom.querySelectorAll('.selectedCell')).toHaveLength(4)
   })
 })
+
+// The browser paints a text selection in a table as a stripe for the text of each cell.
+describe('cells that a text selection covers', () => {
+  const selected = () => [...doc.view.dom.querySelectorAll('.selectedCell')].map((cell) => cell.textContent)
+
+  test('a selection across a whole table fills all its cells', async () => {
+    doc = await open(text)
+    select(1, cellStart('Below.') + 2)
+    expect(selected()).toEqual(['A', 'B', 'one', 'two'])
+  })
+
+  test('a selection into a table fills the cells before its end, not the cell of its end', async () => {
+    doc = await open(text)
+    select(1, cellStart('two') + 1)
+    expect(selected()).toEqual(['A', 'B', 'one'])
+  })
+
+  test('a selection from the start of a cell to below the table fills that cell', async () => {
+    doc = await open(text)
+    select(cellStart('Below.') + 2, cellStart('one'))
+    expect(selected()).toEqual(['one', 'two'])
+  })
+
+  test('a selection of the text of one cell does not fill it', async () => {
+    doc = await open(text)
+    select(cellStart('one'), cellStart('one') + 3)
+    expect(selected()).toEqual([])
+  })
+
+  test('the cells are not filled after the selection collapses', async () => {
+    doc = await open(text)
+    select(1, cellStart('Below.'))
+    select(1, 1)
+    expect(selected()).toEqual([])
+  })
+})

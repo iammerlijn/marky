@@ -216,6 +216,22 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expect(page.locator('.outline-panel')).toBeHidden()
     })
 
+    // One color for the whole selection: no second layer on list items, no bar above the table,
+    // and filled cells in place of a stripe for the text of each cell.
+    test('selection: list and table', async ({ page }) => {
+      await page.goto('/dev/preview.html')
+      await ready(page)
+      const from = (await page.locator('.ProseMirror li', { hasText: 'Reduce' }).boundingBox())!
+      const to = (await page.locator('.ProseMirror td', { hasText: 'Joris' }).boundingBox())!
+      await page.mouse.move(from.x + 40, from.y + from.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(to.x + 20, to.y + to.height / 2, { steps: 20 })
+      await page.mouse.up()
+      await expect(page.locator('.ProseMirror .selectedCell')).toHaveCount(9)
+      const clip = { x: from.x - 40, y: from.y - 40, width: 760, height: to.y + to.height + 80 - from.y }
+      await expect(page).toHaveScreenshot(`selection-${colorScheme}.png`, { clip })
+    })
+
     test('slash menu', async ({ page }) => {
       await page.goto('/dev/preview.html')
       await ready(page)
