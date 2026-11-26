@@ -3,7 +3,7 @@
 import { EditorState } from '@milkdown/kit/prose/state'
 import { afterEach, expect, test } from 'vitest'
 import { reloadMeta } from '../src/editor/plugins/collapsible'
-import { anchor, positionOf, restore } from '../src/editor/plugins/places'
+import { LIMIT, anchor, followed, positionOf, restore } from '../src/editor/plugins/places'
 import { open, type OpenDoc } from './helpers'
 
 let doc: OpenDoc
@@ -40,6 +40,16 @@ test('in a new state of the tab (back from raw mode), the old number stays', asy
   const old = find('B')
   doc.view.updateState(EditorState.create({ doc: doc.parse('# Other A\n\n# B\n'), plugins: doc.view.state.plugins }))
   expect(positionOf(doc.view.state, at)).toBe(old)
+})
+
+test('many edits keep no list of edits, and only the newest anchors follow the edits', async () => {
+  doc = await open('# A\n\n# B\n')
+  const first = anchor(doc.view.state, find('B'))
+  for (let i = 0; i < 1000; i++) doc.view.dispatch(doc.view.state.tr.insertText('x', find('A')))
+  expect(followed(doc.view.state)).toBe(1)
+  expect(positionOf(doc.view.state, first)).toBe(find('B'))
+  for (let i = 0; i < LIMIT + 50; i++) anchor(doc.view.state)
+  expect(followed(doc.view.state)).toBe(LIMIT)
 })
 
 test('restore puts the cursor at the place and opens the closed collapsible around it', async () => {

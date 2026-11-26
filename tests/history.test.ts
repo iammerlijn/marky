@@ -1,6 +1,7 @@
 // Back and forward through the places of a window.
 import { beforeEach, expect, test } from 'vitest'
 import { History } from '../src/app/history'
+import { LIMIT } from '../src/editor/plugins/places'
 
 interface Place {
   tab: number
@@ -72,6 +73,16 @@ test('the places of a closed tab are skipped', () => {
   open.delete(2)
   expect(history.back(at(3), isOpen)).toEqual(at(1))
   expect(history.forward(at(1), isOpen)).toEqual(at(3))
+})
+
+test('the history keeps only the newest places', () => {
+  history.visit(null, at(1, 0))
+  for (let i = 1; i <= LIMIT + 50; i++) history.visit(at(1, i - 1), at(1, i))
+  let steps = 0
+  let here = at(1, LIMIT + 50)
+  for (let place; (place = history.back(here, isOpen)); here = place) steps++
+  expect(steps).toBe(LIMIT - 1)
+  expect(here).toEqual(at(1, 51))
 })
 
 test('when all earlier tabs are closed, back does nothing and the place stays', () => {

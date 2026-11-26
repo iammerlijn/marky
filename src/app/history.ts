@@ -2,6 +2,8 @@
 // tab and a position in its document (src/editor/plugins/places.ts). Only jumps add a place: a
 // tab change, an opened file or an outline jump. Typing and normal cursor movement do not.
 
+import { LIMIT } from '../editor/plugins/places'
+
 export interface Place {
   tab: number
 }
@@ -20,6 +22,8 @@ export class History<P extends Place> {
       else this.places.push(from)
     }
     this.places.push(to)
+    // The oldest places go away, so that the history does not grow in a long session.
+    if (this.places.length > LIMIT) this.places.splice(0, this.places.length - LIMIT)
     this.index = this.places.length - 1
   }
 
