@@ -120,6 +120,13 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expect(page).toHaveScreenshot(`outline-closed-${colorScheme}.png`)
     })
 
+    test('outline: the last heading is current at the end of the document', async ({ page }) => {
+      await page.goto('/dev/preview.html?file=outline.md')
+      await ready(page)
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+      await expect(page.locator('.outline-item').last()).toHaveAttribute('aria-current', 'location')
+    })
+
     test('outline: open', async ({ page }) => {
       await page.goto('/dev/preview.html?file=outline.md')
       await ready(page)

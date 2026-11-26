@@ -143,9 +143,11 @@ class OutlineView {
   }
 
   // The current section: the last heading above the top of the view. Headings in a closed
-  // collapsible are not visible and do not count.
+  // collapsible are not visible and do not count. At the end of the document the last headings
+  // cannot scroll up to the top: then the last heading in the view is the current one.
   private markCurrent() {
-    const limit = viewTop() + 24
+    const atEnd = window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2
+    const limit = atEnd ? window.innerHeight : viewTop() + 24
     let current = 0
     for (let i = 0; i < this.headings.length; i++) {
       const el = this.view.nodeDOM(this.headings[i].pos) as HTMLElement | null
