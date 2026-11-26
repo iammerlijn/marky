@@ -110,6 +110,7 @@ mount(App, {
     onClose: (id: number) => run(() => tabs.close(id, ask)),
     onKeepMine: (id: number) => run(() => tabs.keepMine(id)),
     onLoad: (id: number) => run(() => tabs.loadFromDisk(id)),
+    onToggleRaw: () => toggleRaw(),
   },
 })
 

@@ -18,20 +18,22 @@
     onClose: (id: number) => void
     onKeepMine: (id: number) => void
     onLoad: (id: number) => void
+    onToggleRaw: () => void
   }
 
-  let { tabs, mod, home, recent, onOpen, onNew, onOpenRecent, onClose, onKeepMine, onLoad }: Props = $props()
+  let { tabs, mod, home, recent, onOpen, onNew, onOpenRecent, onClose, onKeepMine, onLoad, onToggleRaw }: Props = $props()
 
   let changes = $state(0)
   onMount(() => tabs.subscribe(() => changes++))
 
   const name = (path: string | null) => (path === null ? 'Untitled' : path.split('/').pop())
   const keyLabel = (key: string) => (mod === '⌘' ? `⌘${key}` : `${mod}+${key}`)
+  const rawKey = mod === '⌘' ? '⌘⇧M' : `${mod}+Shift+M`
   const view = $derived.by(() => {
     changes
     return {
       list: tabs.tabs.map((t) => ({ id: t.id, path: t.path, dirty: t.dirty, active: t === tabs.active })),
-      active: tabs.active ? { id: tabs.active.id, banner: tabs.active.banner } : null,
+      active: tabs.active ? { id: tabs.active.id, banner: tabs.active.banner, raw: tabs.active.rawText !== null } : null,
       recent: tabs.tabs.length === 0 ? recent() : [],
     }
   })
@@ -58,6 +60,22 @@
         </button>
       </div>
     {/each}
+    <button
+      class="raw-toggle"
+      class:on={view.active?.raw}
+      type="button"
+      onclick={onToggleRaw}
+      aria-label="Markdown source"
+      aria-pressed={view.active?.raw ?? false}
+      title={`Markdown source (${rawKey})`}
+    >
+      <!-- The markdown mark. -->
+      <svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true">
+        <rect x="0.75" y="0.75" width="20.5" height="12.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+        <path d="M4 10V4l2.5 3L9 4v6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+        <path d="M15 4v5.5m-2.5-2.5 2.5 2.75L17.5 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+      </svg>
+    </button>
   </nav>
 {/if}
 
@@ -224,6 +242,32 @@
   }
   .tab-close.dirty:hover .cross {
     display: inline;
+  }
+  /* At the right end of the tab bar. Sticky, so that it stays visible when the tabs scroll. */
+  .raw-toggle {
+    position: sticky;
+    right: 0;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 28px;
+    margin-left: auto;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: var(--code-bg);
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .raw-toggle:hover {
+    background: color-mix(in srgb, var(--border) 60%, var(--code-bg));
+    color: var(--text);
+  }
+  .raw-toggle.on {
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: 0 0 0 1px var(--border);
   }
   button:focus-visible {
     outline: 2px solid var(--accent);
