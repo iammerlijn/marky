@@ -327,6 +327,37 @@ After this change: 5,000 lines ~980 ms, 1,000 lines ~275 ms (2026-11-26, runs 2 
 | Memory with 1 tab | 254 MB PSS | |
 | Memory with 10 tabs | 280 MB PSS (app 96, WebKit web process 158, network process 25) | No (< 200 MB) |
 
+**Memory on macOS (2026-11-26, macOS 26.6, Apple Silicon, `dev/measure-app-mac.sh`, [issue 2](https://github.com/iammerlijn/marky/issues/2)):**
+The physical footprint (the "Memory" column of Activity Monitor) of the app and its WebKit
+processes, with the window in front. Median of 3 runs.
+
+| Metric | Result | Target met? |
+|---|---|---|
+| Memory with 1 tab | ~200 MB (app 27, WebKit GPU process 106, web process 61, network process 5) | |
+| Memory with 10 tabs | ~207 MB (app 28, GPU process 107, web process 66, network process 6) | No (< 200 MB) |
+
+Where the memory goes (test pages in the same app, window in front):
+
+- A minimal page ("Hello", no focus) uses 63 MB. This is the base cost of WKWebView.
+- A focused editable element adds ~100 MB to the GPU process (23 blocks of 4 MB of graphics
+  memory). The cause is the blinking cursor: it draws the page 2 times each second. A page
+  without focus that changes a small element 2 times each second uses the same memory. The
+  window size, `caret-color: transparent`, `writingsuggestions="false"` and `spellcheck="false"`
+  do not change it. No public WebKit setting stops the blink.
+- When the window is not visible, macOS releases this memory: the total is then ~125–140 MB.
+  Thus measure only with the window in front.
+- In the web process, the app and the editor add ~25 MB to the minimal page. The code
+  highlighter adds ~9 MB for files with code blocks. Each tab adds ~1 MB.
+- Sometimes WebKit starts a second web process for the app. Then the total is up to ~250 MB.
+
+Thus on macOS, WKWebView and the blinking cursor use ~165 MB before Marky's own code.
+
+Before 2026-11-26, `src/app/main.ts` checked for a new document at each frame
+(`requestAnimationFrame`). Then WebKit made a new frame at each display refresh, also when
+nothing changed. Now an editor plugin calls the check (`docChange` in `src/editor/setup.ts`).
+The memory did not change, but the CPU time of an idle window with 1 tab went from ~3.4 s to
+~1.25 s for each 30 s (app and WebKit processes).
+
 The cold start values are the median of 10 starts with one file (2026-11-25, Linux, Hyprland), after
 [issue 4](https://github.com/iammerlijn/marky/issues/4); a "was" value is from the build
 before it. Two changes made the start faster:

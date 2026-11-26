@@ -37,7 +37,15 @@ void appWindow.onResized(() => void syncFullscreen())
 // A window from Cmd/Ctrl+N starts empty.
 const isFirstWindow = appWindow.label === 'main'
 const editorRoot = document.getElementById('editor')!
-const editor = await createEditor(editorRoot)
+// Check for unsaved edits a short time after a change. The editor calls it for each new document.
+// Not a check at each frame: a frame loop makes WebKit draw at each display refresh, and costs
+// CPU time when nothing changes (design document, section 9).
+let timer: ReturnType<typeof setTimeout> | undefined
+const checkDirty = () => {
+  clearTimeout(timer)
+  timer = setTimeout(() => tabs.refreshDirty(), 250)
+}
+const editor = await createEditor(editorRoot, '', checkDirty)
 const view = editor.ctx.get(editorViewCtx)
 void invoke('bench_mark', { label: 'editor' })
 // The tab bar and the banner stick at the top of the window. When the editor scrolls to the
@@ -117,13 +125,6 @@ mount(App, {
   },
 })
 
-// Check for unsaved edits a short time after a change.
-let timer: ReturnType<typeof setTimeout> | undefined
-const checkDirty = () => {
-  clearTimeout(timer)
-  timer = setTimeout(() => tabs.refreshDirty(), 250)
-}
-
 // Raw mode: the source editor replaces the editor for a tab. CodeMirror is not in the main
 // script: it loads the first time raw mode opens.
 const rawRoot = document.getElementById('raw')!
@@ -177,17 +178,6 @@ function update() {
 tabs.subscribe(update)
 editorRoot.hidden = true
 rawRoot.hidden = true
-
-// Milkdown owns dispatchTransaction, so check for a new document at each frame.
-let shown = view.state.doc
-const watchDoc = () => {
-  if (view.state.doc !== shown) {
-    shown = view.state.doc
-    checkDirty()
-  }
-  requestAnimationFrame(watchDoc)
-}
-watchDoc()
 
 function toggleRaw() {
   const active = tabs.active
