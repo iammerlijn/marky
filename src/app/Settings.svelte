@@ -1,6 +1,6 @@
 <script lang="ts">
   // The settings window (Cmd+, on macOS, Ctrl+, on Linux). Each change saves at once.
-  import { saveOrKeep, type About, type Settings } from './backend'
+  import { settingsSaver, type About, type Settings } from './backend'
   import type { Theme } from './theme'
 
   interface Props {
@@ -17,6 +17,8 @@
 
   // svelte-ignore state_referenced_locally
   let settings = $state({ ...initial })
+  // svelte-ignore state_referenced_locally
+  const saveChange = settingsSaver(initial, save)
   const themes: [Theme, string][] = [
     ['system', 'System'],
     ['light', 'Light'],
@@ -24,9 +26,8 @@
   ]
 
   async function change(update: Partial<Settings>) {
-    const old = settings
     settings = { ...settings, ...update }
-    settings = await saveOrKeep(old, settings, save)
+    settings = await saveChange(settings)
   }
 </script>
 

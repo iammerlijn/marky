@@ -71,10 +71,13 @@ export const onSettingsChanged = (handler: (settings: Settings) => void) =>
   listen<Settings>('settings-changed', ({ payload }) => handler(payload))
 export const getAbout = () => invoke<About>('about')
 
-// A change in the settings window: returns the settings to show. These are the old settings
-// when the save fails, because the backend then keeps the old settings too.
-export const saveOrKeep = (old: Settings, next: Settings, save: (settings: Settings) => Promise<unknown>) =>
-  save(next).then(
-    () => next,
-    () => old,
-  )
+// The changes of the settings window. Each change returns the settings to show. After a failed
+// save these are the last saved settings, not the choice before the click: that choice can be
+// another change that is not saved either. The backend also keeps the last saved settings.
+export function settingsSaver(saved: Settings, save: (settings: Settings) => Promise<unknown>) {
+  return (next: Settings): Promise<Settings> =>
+    save(next).then(
+      () => (saved = next),
+      () => saved,
+    )
+}
