@@ -37,7 +37,6 @@ modules:
           - node_modules
           - src-tauri/target
           - .git
-          - spikes
           - tests
           - test-results
           - .flatpak-builder
