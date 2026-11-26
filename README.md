@@ -89,3 +89,9 @@ The fidelity tests open and save each file in `tests/corpus/` and check that no 
 ## Documentation
 
 - [Style sheet](docs/style.md): the design rules of the UI
+
+## License
+
+Copyright (C) 2026 iammerlijn
+
+Marky is free software under the [GNU General Public License v3.0](LICENSE). You can use, change and share it. If you share a changed version, you must share its source under the same license.
