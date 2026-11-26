@@ -6,6 +6,8 @@ export default defineConfig({
   plugins: [svelte()],
   // The app uses top-level await. WKWebView and WebKitGTK support it.
   build: { target: 'esnext' },
+  // The highlight worker loads each Shiki language as a chunk: that needs an ES module worker.
+  worker: { format: 'es' },
   clearScreen: false,
   // The Playwright tests in tests/visual are *.spec.ts and run with `npm run test:visual`.
   test: { include: ['tests/**/*.test.ts'] },

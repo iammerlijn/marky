@@ -2,7 +2,7 @@
 // Code blocks and Mermaid.
 import { TextSelection } from '@milkdown/kit/prose/state'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { loaders } from '../src/editor/plugins/codeblock'
+import { loaders, WORKER_IDLE_MS, workerTokenizer } from '../src/editor/plugins/codeblock'
 import { open, type OpenDoc } from './helpers'
 
 let doc: OpenDoc
@@ -51,10 +51,32 @@ describe('code blocks', () => {
     // Type a keyword at the start of the code.
     const code = view.state.doc.child(0).nodeSize + 1
     view.dispatch(view.state.tr.insertText('const ', code))
-    expect(styled()).toBeGreaterThan(before)
+    await vi.waitFor(() => expect(styled()).toBeGreaterThan(before))
     const after = styled()
     view.dispatch(view.state.tr.insertText('More ', 1))
     expect(styled()).toBe(after)
+  })
+
+  test('the colors stay while the new highlight of an edited code block is not ready', async () => {
+    doc = await open('```ts\nconst a = 1\n```\n')
+    const styled = () => doc.view.dom.querySelectorAll('.code-block code span[style]').length
+    await vi.waitFor(() => expect(styled()).toBeGreaterThan(0), { timeout: 5000 })
+    const before = styled()
+    const original = loaders.tokenize
+    // A worker that does not answer yet.
+    const requests: string[] = []
+    loaders.tokenize = (code) => {
+      requests.push(code)
+      return new Promise(() => {})
+    }
+    try {
+      const { view } = doc
+      view.dispatch(view.state.tr.insertText('x', view.state.doc.firstChild!.nodeSize - 1))
+      expect(requests).toEqual(['const a = 1x'])
+      expect(styled()).toBe(before)
+    } finally {
+      loaders.tokenize = original
+    }
   })
 
   test('a short name of a language (py) is highlighted', async () => {
@@ -75,6 +97,50 @@ describe('code blocks', () => {
     await new Promise((r) => setTimeout(r, 200))
     expect(doc.view.dom.querySelectorAll('.code-block code span[style]')).toHaveLength(0)
     expect(blocks()[0].querySelector('code')!.textContent).toBe('some code')
+  })
+})
+
+describe('highlight worker', () => {
+  // A worker that answers each request at once, with no spans.
+  const workers: { terminated: boolean; requests: number }[] = []
+  class FakeWorker {
+    onmessage: ((event: { data: unknown }) => void) | null = null
+    state = { terminated: false, requests: 0 }
+    constructor() {
+      workers.push(this.state)
+    }
+    postMessage({ id }: { id: number }) {
+      this.state.requests++
+      void Promise.resolve().then(() => this.onmessage!({ data: { id, spans: [] } }))
+    }
+    terminate() {
+      this.state.terminated = true
+    }
+  }
+
+  beforeEach(() => {
+    workers.length = 0
+    vi.useFakeTimers()
+    vi.stubGlobal('Worker', FakeWorker)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  test('the worker stops when no code block needed it for some time, and starts again', async () => {
+    const tokenize = workerTokenizer()
+    await tokenize('x', 'ts')
+    vi.advanceTimersByTime(WORKER_IDLE_MS - 1)
+    // A request before the time ends keeps the same worker.
+    await tokenize('y', 'ts')
+    vi.advanceTimersByTime(WORKER_IDLE_MS - 1)
+    expect(workers).toEqual([{ terminated: false, requests: 2 }])
+    vi.advanceTimersByTime(1)
+    expect(workers[0].terminated).toBe(true)
+    await tokenize('z', 'ts')
+    expect(workers).toHaveLength(2)
+    expect(workers[1]).toEqual({ terminated: false, requests: 1 })
   })
 })
 
