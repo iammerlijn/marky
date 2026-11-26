@@ -147,3 +147,63 @@ for (const colorScheme of ['light', 'dark'] as const) {
     })
   })
 }
+
+// A theme from the settings overrides the system theme. The pages look the same as with that
+// system theme, so the tests use the same images.
+for (const [system, theme] of [['dark', 'light'], ['light', 'dark']] as const) {
+  test.describe(`${theme} theme on a ${system} system`, () => {
+    test.use({ colorScheme: system })
+
+    test('document: sample', async ({ page }) => {
+      await page.goto(`/dev/preview.html?theme=${theme}`)
+      await ready(page)
+      await expect(page).toHaveScreenshot(`sample-${theme}.png`, { fullPage: true })
+    })
+
+    test('app: tabs', async ({ page }) => {
+      await page.goto(`/dev/app.html?state=tabs&theme=${theme}`)
+      await page.waitForSelector('body[data-ready]')
+      await page.evaluate(() => document.fonts.ready)
+      await expect(page).toHaveScreenshot(`app-tabs-${theme}.png`)
+    })
+
+    // A change of the theme also draws the Mermaid diagrams again.
+    test('document: sample, theme changed after the diagrams', async ({ page }) => {
+      await page.goto('/dev/preview.html')
+      await ready(page)
+      const diagram = page.locator('.mermaid-diagram svg')
+      await diagram.evaluate((svg) => svg.setAttribute('data-old', ''))
+      await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme)
+      await expect(page.locator('.mermaid-diagram svg:not([data-old])')).toBeAttached()
+      await page.evaluate(() => window.scrollTo(0, 0))
+      await expect(page).toHaveScreenshot(`sample-${theme}.png`, { fullPage: true })
+    })
+  })
+}
+
+// The settings window: macOS has "Warn Before Quitting", Linux has the About section. The
+// viewport is the size of the window (show_settings in src-tauri/src/lib.rs).
+for (const [os, height] of [['mac', 184], ['linux', 264]] as const) {
+  for (const colorScheme of ['light', 'dark'] as const) {
+    test(`settings: ${os}, ${colorScheme}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme })
+      await page.setViewportSize({ width: 420, height })
+      await page.goto(`/dev/settings.html?os=${os}`)
+      await page.waitForSelector('body[data-ready]')
+      await expect(page.getByRole('radio', { name: 'System' })).toBeChecked()
+      expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(height)
+      await expect(page).toHaveScreenshot(`settings-${os}-${colorScheme}.png`)
+    })
+  }
+}
+
+test('settings: a click on a theme changes the theme at once', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto('/dev/settings.html')
+  await page.waitForSelector('body[data-ready]')
+  await page.getByText('Dark', { exact: true }).click()
+  await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await page.getByText('System', { exact: true }).click()
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme')
+})

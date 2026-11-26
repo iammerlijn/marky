@@ -55,3 +55,9 @@ test('Ctrl+Q quits on Linux, and the page does not handle Cmd+Q on macOS', () =>
   expect(shortcut(key('q', { ctrlKey: true }), false)).toBe('quit')
   expect(shortcut(key('q', { metaKey: true }), true)).toBeNull()
 })
+
+test('Ctrl+, opens the settings on Linux, and the page does not handle Cmd+, on macOS', () => {
+  expect(shortcut(key(',', { ctrlKey: true }), false)).toBe('settings')
+  expect(shortcut(key(',', { metaKey: true }), true)).toBeNull()
+  expect(shortcut(key(',', { metaKey: true }), false)).toBeNull()
+})

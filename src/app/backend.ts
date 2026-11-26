@@ -1,6 +1,7 @@
 // The Rust backend. Tests use a fake with files in memory.
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import type { Theme } from './theme'
 
 export interface Opened {
   text: string
@@ -47,3 +48,25 @@ export function onOpenFiles(handler: (paths: string[]) => Promise<void>, takeNow
     return unlisten
   })
 }
+
+// The app settings (src-tauri/src/settings.rs). The settings window changes them. Each window
+// gets `settings-changed` after a change.
+export interface Settings {
+  warnBeforeQuit: boolean
+  theme: Theme
+}
+
+// For the About section of the settings window on Linux (src-tauri/src/about.rs).
+export interface About {
+  name: string
+  version: string
+  copyright: string
+  license: string
+  repository: string
+}
+
+export const getSettings = () => invoke<Settings>('get_settings')
+export const setSettings = (settings: Settings) => invoke('set_settings', { settings })
+export const onSettingsChanged = (handler: (settings: Settings) => void) =>
+  listen<Settings>('settings-changed', ({ payload }) => handler(payload))
+export const getAbout = () => invoke<About>('about')

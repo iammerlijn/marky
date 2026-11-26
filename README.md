@@ -25,7 +25,7 @@ Open a file, edit it, close it. There are no folders, no vaults and no setup.
 - **Markdown shortcuts while you type.** `# ` makes a heading, `- [ ] ` makes a task, and `/` opens a menu to insert a table, a diagram, a collapsible section, a code block or an image.
 - **Tabs.** Keep several files open in one window. A dot shows unsaved edits. Marky reopens your tabs at the next start.
 - **Changes on disk.** When another app changes an open file, Marky reloads it. If you have unsaved edits, Marky asks which version to keep.
-- **Light and dark mode** follow the system setting.
+- **Light and dark mode** follow the system setting. To use one theme always, choose Light or Dark in the settings (`Cmd+,` on macOS, `Ctrl+,` on Linux).
 - **Small and fast.** The Flatpak download is about 6 MB.
 
 ### Outline
@@ -50,6 +50,7 @@ Marky uses `Cmd` on macOS and `Ctrl` on Linux.
 | `Cmd/Ctrl+W` | Close the tab |
 | `Cmd/Ctrl+N` | New window |
 | `Cmd/Ctrl+Shift+M` | Show or hide the markdown source |
+| `Cmd/Ctrl+,` | Open the settings |
 
 You can also open a file from the command line (`marky notes.md`) or with "Open With" in your file manager.
 

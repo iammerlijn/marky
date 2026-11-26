@@ -7,6 +7,7 @@ import type { Node } from '@milkdown/kit/prose/model'
 import { Plugin, PluginKey, TextSelection, type Transaction } from '@milkdown/kit/prose/state'
 import { Decoration, DecorationSet, type EditorView, type NodeView } from '@milkdown/kit/prose/view'
 import { $prose, $view } from '@milkdown/kit/utils'
+import { isDark, onThemeChange } from '../../app/theme'
 import { changedNodes } from './changed'
 import { createTokenizer, type Span, type Tokenize } from './highlighter'
 import { languageModule } from './languages'
@@ -189,9 +190,9 @@ class CodeBlockView implements NodeView {
   private timer: ReturnType<typeof setTimeout> | undefined
   private visible = false
   private rendered = ''
-  private colorScheme: MediaQueryList | null = null
-  // Render again in the other theme when the system changes between light and dark.
-  private onColorScheme = () => {
+  private stopThemeChange: (() => void) | null = null
+  // Render again in the other theme when the system or the chosen theme changes.
+  private onThemeChange = () => {
     if (!this.visible) return
     this.rendered = ''
     this.schedule(0)
@@ -242,8 +243,7 @@ class CodeBlockView implements NodeView {
       this.error.contentEditable = 'false'
       this.error.hidden = true
       this.dom.append(this.diagram, this.error)
-      this.colorScheme = matchMedia('(prefers-color-scheme: dark)')
-      this.colorScheme.addEventListener('change', this.onColorScheme)
+      this.stopThemeChange = onThemeChange(this.onThemeChange)
       // Load Mermaid only when the diagram is visible.
       if (typeof IntersectionObserver !== 'undefined') {
         const observer = new IntersectionObserver((entries) => {
@@ -284,7 +284,7 @@ class CodeBlockView implements NodeView {
     const source = this.node.textContent
     this.rendered = source
     const mermaid = await loaders.mermaid()
-    const dark = this.colorScheme!.matches
+    const dark = isDark()
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: 'strict',
@@ -314,7 +314,7 @@ class CodeBlockView implements NodeView {
 
   destroy() {
     clearTimeout(this.timer)
-    this.colorScheme?.removeEventListener('change', this.onColorScheme)
+    this.stopThemeChange?.()
   }
 }
 
