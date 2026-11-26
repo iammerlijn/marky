@@ -84,6 +84,7 @@ npm test                         # unit and fidelity tests (Vitest)
 (cd src-tauri && cargo test)     # Rust backend
 npm run test:visual              # screenshot tests in the Playwright container
 npm run test:e2e                 # app tests in a real window (Linux, needs tauri-driver)
+tests/e2e/docker.sh              # app tests in a Debian container (Arch has no WebKitWebDriver)
 ```
 
 The fidelity tests open and save each file in `tests/corpus/` and check that no line changes.
