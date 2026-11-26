@@ -7,7 +7,6 @@ import '../styles/tokens.css'
 import '../styles/document.css'
 import '../styles/outline.css'
 import { editorViewCtx } from '@milkdown/kit/core'
-import { Selection } from '@milkdown/kit/prose/state'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { homeDir } from '@tauri-apps/api/path'
@@ -16,10 +15,11 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message, open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { mount } from 'svelte'
 import { JUMP_EVENT } from '../editor/plugins/outline'
+import { anchor, restore, type Anchor } from '../editor/plugins/places'
 import { createEditor, markdownOf } from '../editor/setup'
 import App from './App.svelte'
 import { onFileChanged, onOpenFiles, tauriBackend } from './backend'
-import { History, type Place } from './history'
+import { History } from './history'
 import { listenForShortcuts, modLabel, type Action } from './keys'
 import type { RawEditor } from './raw'
 import { addRecent, recentFiles, removeRecent } from './recent'
@@ -202,11 +202,16 @@ function toggleRaw() {
 }
 
 // Back and forward. A tab change (also from an opened file) and an outline jump add a place.
-const history = new History()
+interface Place {
+  tab: number
+  at: Anchor
+  scroll: number
+}
+const history = new History<Place>()
 let shownTab: Tab | null = null
 let travelling = false
 const here = (): Place | null =>
-  tabs.active && { tab: tabs.active.id, pos: view.state.selection.head, scroll: window.scrollY }
+  tabs.active && { tab: tabs.active.id, at: anchor(view.state), scroll: window.scrollY }
 tabs.subscribe(() => {
   const previous = shownTab
   if (tabs.active === previous) return
@@ -214,13 +219,13 @@ tabs.subscribe(() => {
   if (travelling || !tabs.active) return
   // The tab that is not active now keeps its editor state and its scroll position.
   const from = previous && tabs.tabs.includes(previous)
-    ? { tab: previous.id, pos: previous.state.selection.head, scroll: previous.scroll }
+    ? { tab: previous.id, at: anchor(previous.state), scroll: previous.scroll }
     : null
   history.visit(from, here()!)
 })
 editorRoot.addEventListener(JUMP_EVENT, (event) => {
   const from = (event as CustomEvent<{ pos: number; scroll: number }>).detail
-  if (tabs.active) history.visit({ tab: tabs.active.id, ...from }, here()!)
+  if (tabs.active) history.visit({ tab: tabs.active.id, at: anchor(view.state, from.pos), scroll: from.scroll }, here()!)
 })
 
 function focusActive() {
@@ -237,10 +242,7 @@ function travel(place: Place | null) {
     travelling = false
   }
   // In raw mode the editor document is not visible: only the tab and the scroll position count.
-  if (tabs.active?.rawText === null) {
-    const doc = view.state.doc
-    view.dispatch(view.state.tr.setSelection(Selection.near(doc.resolve(Math.min(place.pos, doc.content.size)))))
-  }
+  if (tabs.active?.rawText === null) restore(view, place.at)
   focusActive()
   window.scrollTo(0, place.scroll)
 }

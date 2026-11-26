@@ -1,11 +1,16 @@
 // Back and forward through the places of a window.
 import { beforeEach, expect, test } from 'vitest'
-import { History, type Place } from '../src/app/history'
+import { History } from '../src/app/history'
 
+interface Place {
+  tab: number
+  pos: number
+  scroll: number
+}
 const at = (tab: number, pos = 0, scroll = 0): Place => ({ tab, pos, scroll })
 const open = new Set<number>()
 const isOpen = (tab: number) => open.has(tab)
-let history: History
+let history: History<Place>
 
 beforeEach(() => {
   history = new History()
