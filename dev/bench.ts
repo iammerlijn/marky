@@ -2,6 +2,7 @@
 // The result is in document.body.dataset.result (JSON). See dev/bench.mjs.
 import '@fontsource/inter/400.css'
 import '@fontsource/inter/600.css'
+import '@fontsource/jetbrains-mono/400.css'
 import 'prosemirror-view/style/prosemirror.css'
 import '../src/styles/tokens.css'
 import '../src/styles/document.css'
@@ -53,6 +54,8 @@ const p95 = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(v
 const round = (value: number) => Math.round(value * 10) / 10
 
 const text = generate()
+// As the app does (src/app/main.ts): the fonts load before the file opens.
+await Promise.all(['400 1em Inter', '600 1em Inter', "400 1em 'JetBrains Mono'"].map((f) => document.fonts.load(f)))
 let t = performance.now()
 const editor = await createEditor(document.getElementById('editor')!)
 const createMs = performance.now() - t

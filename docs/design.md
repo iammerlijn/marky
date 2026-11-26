@@ -289,6 +289,25 @@ Measure these targets in CI on macOS and Linux for each release.
 | Save after an edit in a 5,000-line file | 4 ms | |
 | Flatpak download | 5.8 MB | Yes |
 
+**Why the target for 5,000 lines is < 1 s ([issue 3](https://github.com/iammerlijn/marky/issues/3)).**
+Measured on 2026-11-26 (same setup, a slower run than 2026-11-25): a 5,000-line file opened in
+~1,100 ms. The parse and the block map took ~390 ms, the editor DOM ~180 ms, the layout ~260 ms
+and the first paint ~260 ms. Thus the parse alone is more than 300 ms. These are the options:
+
+- Render a long document in parts. A test showed the first 50 blocks in ~560 ms, because the
+  parse must finish first. All blocks were added after ~1,700 ms, slower than one render.
+- Parse only the start of the file first. This can show the start in < 300 ms. But edits and
+  saves during the load, and reference links that are defined later in the file, need special
+  code. This risk is too high for the block-preserving save (section 5).
+- `content-visibility: auto` on the blocks (~740 ms). It changes the layout: margins do not
+  collapse and the collapsible arrow is clipped.
+
+A 5,000-line markdown file is rare. So Marky keeps the < 1 s target and the simple open. One
+small change helps: the app loads the fonts before the first file opens (`src/app/main.ts`).
+Before, a font loaded only when the document used it, and then the layout was done again.
+After this change: 5,000 lines ~980 ms, 1,000 lines ~275 ms (2026-11-26, runs 2 and 3 of
+`dev/bench.mjs`; run 1 also loads the code highlighter).
+
 **Measured in the release app (2026-11-25, Linux, `dev/measure-app.sh`):**
 
 | Metric | Result | Target met? |

@@ -24,6 +24,9 @@ import { Tabs, type CloseAnswer, type Tab } from './tabs'
 
 // For dev/measure-app.sh (see bench_mark at the end of this file).
 void invoke('bench_mark', { label: 'script' })
+// A font loads only when text uses it. Then the layout of a long document is done again (design
+// document, section 9). So load the fonts now, and wait for them before the first file opens.
+const fonts = Promise.all(['400 1em Inter', '600 1em Inter', "400 1em 'JetBrains Mono'"].map((f) => document.fonts.load(f)))
 const appWindow = getCurrentWindow()
 // macOS hides the window buttons in full screen: then the tab bar needs no room for them.
 const syncFullscreen = async () =>
@@ -254,6 +257,7 @@ await getCurrentWebview().onDragDropEvent(({ payload }) => {
 })
 
 await onFileChanged((path, version) => void run(() => tabs.changed(path, version)))
+await fonts.catch(() => {})
 
 // Reopen the tabs of the last session. A file that is gone now is skipped without a message.
 if (isFirstWindow) try {
