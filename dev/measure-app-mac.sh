@@ -11,6 +11,17 @@ set -euo pipefail
 BIN=${BIN:-src-tauri/target/release/marky}
 RUNS=${RUNS:-3}
 
+# Marky is single-instance: a new process sends its files to an open Marky and stops.
+if pgrep -x 'marky.*' > /dev/null; then
+  echo "Marky is open. Quit it first." >&2
+  exit 1
+fi
+# WebKit keeps the data (and the saved session) of a binary outside an app bundle under the name
+# of the binary. A copy with its own name has its own session, so no saved tabs open.
+COPY=$(mktemp -d)
+cp "$BIN" "$COPY/marky-measure"
+trap 'rm -rf "$COPY"' EXIT
+
 mb() {
   footprint -p "$1" 2> /dev/null | awk '/phys_footprint:/ {v = $2; if ($3 == "KB") v /= 1024; printf "%d", v; exit}'
 }
@@ -29,13 +40,16 @@ for pid in subprocess.run(["pgrep", "-f", "com.apple.WebKit"], capture_output=Tr
 # Prints one line for each sample in front: app GPU network web total (MB).
 measure() {
   local count=$1
+  work='' app=''
+  # Also after an error or Ctrl+C: stop the app and remove the files.
+  trap 'kill $app 2> /dev/null || true; rm -rf "$work"' EXIT
+  trap 'exit 1' INT TERM
   for _ in $(seq 1 "$RUNS"); do
     # New files for each run: the next run must not open the tabs of this session again.
-    local work
     work=$(mktemp -d)
     for i in $(seq 1 "$count"); do cp dev/sample.md "$work/file$i.md"; done
-    "$BIN" "$work"/*.md > /dev/null 2>&1 &
-    local app=$!
+    "$COPY/marky-measure" "$work"/*.md > /dev/null 2>&1 &
+    app=$!
     sleep 3
     osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $app) to true" > /dev/null
     sleep 5
