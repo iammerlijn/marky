@@ -202,6 +202,13 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expect(page).toHaveScreenshot(`outline-closed-${colorScheme}.png`)
     })
 
+    test('outline: the last heading is current at the end of the document', async ({ page }) => {
+      await page.goto('/dev/preview.html?file=outline.md')
+      await ready(page)
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+      await expect(page.locator('.outline-item').last()).toHaveAttribute('aria-current', 'location')
+    })
+
     test('outline: open', async ({ page }) => {
       await page.goto('/dev/preview.html?file=outline.md')
       await ready(page)
@@ -245,3 +252,86 @@ for (const colorScheme of ['light', 'dark'] as const) {
     })
   })
 }
+
+// A theme from the settings overrides the system theme. The pages look the same as with that
+// system theme, so the tests use the same images.
+for (const [system, theme] of [['dark', 'light'], ['light', 'dark']] as const) {
+  test.describe(`${theme} theme on a ${system} system`, () => {
+    test.use({ colorScheme: system })
+
+    test('document: sample', async ({ page }) => {
+      await page.goto(`/dev/preview.html?theme=${theme}`)
+      await ready(page)
+      await expect(page).toHaveScreenshot(`sample-${theme}.png`, { fullPage: true })
+    })
+
+    test('app: tabs', async ({ page }) => {
+      await page.goto(`/dev/app.html?state=tabs&theme=${theme}`)
+      await page.waitForSelector('body[data-ready]')
+      await page.evaluate(() => document.fonts.ready)
+      await expect(page).toHaveScreenshot(`app-tabs-${theme}.png`)
+    })
+
+    // A change of the theme also draws the Mermaid diagrams again.
+    test('document: sample, theme changed after the diagrams', async ({ page }) => {
+      await page.goto('/dev/preview.html')
+      await ready(page)
+      const diagram = page.locator('.mermaid-diagram svg')
+      await diagram.evaluate((svg) => svg.setAttribute('data-old', ''))
+      await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme)
+      await expect(page.locator('.mermaid-diagram svg:not([data-old])')).toBeAttached()
+      await page.evaluate(() => window.scrollTo(0, 0))
+      await expect(page).toHaveScreenshot(`sample-${theme}.png`, { fullPage: true })
+    })
+  })
+}
+
+// The settings window: macOS has "Warn Before Quitting", Linux has the About section. The
+// viewport is the size of the window (show_settings in src-tauri/src/lib.rs). The open theme menu
+// must fit in the window.
+for (const [os, height] of [['mac', 192], ['linux', 226]] as const) {
+  for (const colorScheme of ['light', 'dark'] as const) {
+    test(`settings: ${os}, ${colorScheme}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme })
+      await page.setViewportSize({ width: 480, height })
+      await page.goto(`/dev/settings.html?os=${os}`)
+      await page.waitForSelector('body[data-ready]')
+      await expect(page.getByRole('button', { name: 'Appearance System' })).toBeVisible()
+      expect(await page.evaluate(() => document.body.offsetHeight)).toBe(height)
+      await expect(page).toHaveScreenshot(`settings-${os}-${colorScheme}.png`)
+      await page.getByRole('button', { name: 'Appearance System' }).click()
+      const menu = await page.getByRole('listbox').boundingBox()
+      expect(menu!.y + menu!.height).toBeLessThanOrEqual(height)
+      await expect(page).toHaveScreenshot(`settings-${os}-${colorScheme}-menu.png`)
+    })
+  }
+}
+
+test('settings: a choice in the theme menu changes the theme at once', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto('/dev/settings.html')
+  await page.waitForSelector('body[data-ready]')
+  await page.getByRole('button', { name: 'Appearance System' }).click()
+  await page.getByRole('option', { name: 'Dark' }).click()
+  await expect(page.getByRole('listbox')).toBeHidden()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await expect(page.getByRole('button', { name: 'Appearance Dark' })).toBeFocused()
+
+  // The keyboard: open, move up, choose.
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByRole('option', { name: 'Dark' })).toHaveAttribute('aria-selected', 'true')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme')
+
+  // Escape and a click outside close the menu without a change.
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('listbox')).toBeHidden()
+  await page.keyboard.press(' ')
+  await page.mouse.click(10, 180)
+  await expect(page.getByRole('listbox')).toBeHidden()
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme')
+})

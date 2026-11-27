@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>nl.marky.Marky</id>
+  <id>io.github.iammerlijn.Marky</id>
   <name>Marky</name>
   <summary>Edit markdown files as finished documents</summary>
   <metadata_license>CC0-1.0</metadata_license>
@@ -9,6 +9,6 @@
     <p>Marky shows markdown as a finished document, with real tables, diagrams and collapsibles.
     When it saves, it keeps the text of each part that you did not edit.</p>
   </description>
-  <launchable type="desktop-id">nl.marky.Marky.desktop</launchable>
+  <launchable type="desktop-id">io.github.iammerlijn.Marky.desktop</launchable>
   <content_rating type="oars-1.1"/>
 </component>

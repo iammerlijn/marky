@@ -14,13 +14,17 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message, open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { mount } from 'svelte'
+import { JUMP_EVENT } from '../editor/plugins/outline'
+import { anchor, release, restore, type Anchor } from '../editor/plugins/places'
 import { createEditor, markdownOf } from '../editor/setup'
 import App from './App.svelte'
-import { onFileChanged, onOpenFiles, tauriBackend } from './backend'
-import { modLabel, shortcut, type Action } from './keys'
+import { getSettings, onFileChanged, onOpenFiles, onSettingsChanged, tauriBackend } from './backend'
+import { History } from './history'
+import { listenForShortcuts, modLabel, type Action } from './keys'
 import type { RawEditor } from './raw'
 import { addRecent, recentFiles, removeRecent } from './recent'
 import { Tabs, type CloseAnswer, type Tab } from './tabs'
+import { followTheme } from './theme'
 
 // For dev/measure-app.sh (see bench_mark at the end of this file).
 void invoke('bench_mark', { label: 'script' })
@@ -28,6 +32,8 @@ void invoke('bench_mark', { label: 'script' })
 // So load the fonts now, and wait for them before the first file opens.
 const fonts = Promise.all(['400 1em Inter', '600 1em Inter', "400 1em 'JetBrains Mono'"].map((f) => document.fonts.load(f)))
 const appWindow = getCurrentWindow()
+// The theme from the settings, before the first diagram renders. The window is still hidden.
+await followTheme(getSettings, onSettingsChanged)
 // macOS hides the window buttons in full screen: then the tab bar needs no room for them.
 const syncFullscreen = async () =>
   document.documentElement.classList.toggle('fullscreen', await appWindow.isFullscreen())
@@ -37,7 +43,15 @@ void appWindow.onResized(() => void syncFullscreen())
 // A window from Cmd/Ctrl+N starts empty.
 const isFirstWindow = appWindow.label === 'main'
 const editorRoot = document.getElementById('editor')!
-const editor = await createEditor(editorRoot)
+// Check for unsaved edits a short time after a change. The editor calls it for each new document.
+// Not a check at each frame: a frame loop makes WebKit draw at each display refresh, and costs
+// CPU time when nothing changes.
+let timer: ReturnType<typeof setTimeout> | undefined
+const checkDirty = () => {
+  clearTimeout(timer)
+  timer = setTimeout(() => tabs.refreshDirty(), 250)
+}
+const editor = await createEditor(editorRoot, '', checkDirty)
 const view = editor.ctx.get(editorViewCtx)
 void invoke('bench_mark', { label: 'editor' })
 // The tab bar and the banner stick at the top of the window. When the editor scrolls to the
@@ -117,13 +131,6 @@ mount(App, {
   },
 })
 
-// Check for unsaved edits a short time after a change.
-let timer: ReturnType<typeof setTimeout> | undefined
-const checkDirty = () => {
-  clearTimeout(timer)
-  timer = setTimeout(() => tabs.refreshDirty(), 250)
-}
-
 // Raw mode: the source editor replaces the editor for a tab. CodeMirror is not in the main
 // script: it loads the first time raw mode opens.
 const rawRoot = document.getElementById('raw')!
@@ -178,17 +185,6 @@ tabs.subscribe(update)
 editorRoot.hidden = true
 rawRoot.hidden = true
 
-// Milkdown owns dispatchTransaction, so check for a new document at each frame.
-let shown = view.state.doc
-const watchDoc = () => {
-  if (view.state.doc !== shown) {
-    shown = view.state.doc
-    checkDirty()
-  }
-  requestAnimationFrame(watchDoc)
-}
-watchDoc()
-
 function toggleRaw() {
   const active = tabs.active
   if (!active) return
@@ -208,6 +204,59 @@ function toggleRaw() {
   }
 }
 
+// Back and forward. A tab change (also from an opened file) and an outline jump add a place.
+interface Place {
+  tab: number
+  at: Anchor
+  scroll: number
+}
+// A dropped place releases its anchor, so that its position stops following the edits.
+const history = new History<Place>((place) => release(place.at))
+let shownTab: Tab | null = null
+let openTabs = new Set<number>()
+let travelling = false
+const here = (): Place | null =>
+  tabs.active && { tab: tabs.active.id, at: anchor(view.state), scroll: window.scrollY }
+tabs.subscribe(() => {
+  const ids = new Set(tabs.tabs.map((t) => t.id))
+  for (const id of openTabs) if (!ids.has(id)) history.forget(id)
+  openTabs = ids
+  const previous = shownTab
+  if (tabs.active === previous) return
+  shownTab = tabs.active
+  if (travelling || !tabs.active) return
+  // The tab that is not active now keeps its editor state and its scroll position.
+  const from = previous && tabs.tabs.includes(previous)
+    ? { tab: previous.id, at: anchor(previous.state), scroll: previous.scroll }
+    : null
+  history.visit(from, here()!)
+})
+editorRoot.addEventListener(JUMP_EVENT, (event) => {
+  const from = (event as CustomEvent<{ pos: number; scroll: number }>).detail
+  if (tabs.active) history.visit({ tab: tabs.active.id, at: anchor(view.state, from.pos), scroll: from.scroll }, here()!)
+})
+
+function focusActive() {
+  if (tabs.active?.rawText != null) raw?.focus()
+  else view.focus()
+}
+
+function travel(place: Place | null) {
+  if (!place) return
+  travelling = true
+  try {
+    tabs.activate(place.tab)
+  } finally {
+    travelling = false
+  }
+  // In raw mode the editor document is not visible: only the tab and the scroll position count.
+  if (tabs.active?.rawText === null) restore(view, place.at)
+  focusActive()
+  window.scrollTo(0, place.scroll)
+}
+
+const isOpen = (id: number) => tabs.tabs.some((t) => t.id === id)
+
 function perform(action: Action) {
   if (action === 'open') void chooseFile()
   else if (action === 'save') void run(() => tabs.save())
@@ -223,14 +272,15 @@ function perform(action: Action) {
   } else if (action === 'new-window') void run(() => invoke('new_window'))
   else if (action === 'toggle-raw') toggleRaw()
   else if (action === 'quit') void run(() => invoke('quit_app'))
+  else if (action === 'back') travel(history.back(here(), isOpen))
+  else if (action === 'forward') travel(history.forward(here(), isOpen))
+  else if (action === 'previous-tab' || action === 'next-tab') {
+    tabs.activateNext(action === 'next-tab' ? 1 : -1)
+    focusActive()
+  } else if (action === 'settings') void run(() => invoke('open_settings'))
 }
 
-window.addEventListener('keydown', (event) => {
-  const action = shortcut(event)
-  if (!action) return
-  event.preventDefault()
-  perform(action)
-})
+listenForShortcuts(perform)
 // The macOS menu bar sends the same actions (src-tauri/src/menu.rs).
 await listen<Action>('menu', ({ payload }) => perform(payload))
 

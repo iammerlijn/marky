@@ -25,7 +25,7 @@ Open a file, edit it, close it. There are no folders, no vaults and no setup.
 - **Markdown shortcuts while you type.** `# ` makes a heading, `- [ ] ` makes a task, and `/` opens a menu to insert a table, a diagram, a collapsible section, a code block or an image.
 - **Tabs.** Keep several files open in one window. A dot shows unsaved edits. Marky reopens your tabs at the next start.
 - **Changes on disk.** When another app changes an open file, Marky reloads it. If you have unsaved edits, Marky asks which version to keep.
-- **Light and dark mode** follow the system setting.
+- **Light and dark mode** follow the system setting. To use one theme always, choose Light or Dark in the settings (`Cmd+,` on macOS, `Ctrl+,` on Linux).
 - **Small and fast.** The Flatpak download is about 6 MB.
 
 ### Outline
@@ -50,10 +50,24 @@ Marky uses `Cmd` on macOS and `Ctrl` on Linux.
 | `Cmd/Ctrl+W` | Close the tab |
 | `Cmd/Ctrl+N` | New window |
 | `Cmd/Ctrl+Shift+M` | Show or hide the markdown source |
+| `Cmd/Ctrl+,` | Open the settings |
+
+Back, forward and tab changes use other keys on Linux:
+
+| Action | macOS | Linux |
+|---|---|---|
+| Back | `Cmd+[` | `Alt+Left` |
+| Forward | `Cmd+]` | `Alt+Right` |
+| Previous tab | `Cmd+Option+Left`, `Cmd+Shift+[`, `Ctrl+Shift+Tab` | `Ctrl+PageUp`, `Ctrl+Shift+Tab` |
+| Next tab | `Cmd+Option+Right`, `Cmd+Shift+]`, `Ctrl+Tab` | `Ctrl+PageDown`, `Ctrl+Tab` |
+
+Back and forward go to the places where you were before: a tab change, an opened file or a jump with the outline adds a place. Places of closed tabs are skipped.
 
 You can also open a file from the command line (`marky notes.md`) or with "Open With" in your file manager.
 
 ## Build from source
+
+To only install Marky, download the DMG (macOS) or the `.flatpak` file (Linux) of the [latest release](https://github.com/iammerlijn/marky/releases). [llms-install.md](llms-install.md) has the steps.
 
 Marky is a [Tauri 2](https://tauri.app) app with a Svelte 5 frontend and a [Milkdown](https://milkdown.dev) editor. The tool versions are in `mise.toml` (Node and Rust).
 
@@ -71,6 +85,7 @@ npx tauri dev                    # run the app with live reload
 npx tauri build --bundles dmg    # macOS package
 npx tauri build --bundles deb    # Linux package
 packaging/flatpak/build.sh       # build and install the Flatpak for this user
+packaging/flatpak/update-sources.sh  # make the offline Flatpak sources again after a lockfile change
 ```
 
 ## Tests

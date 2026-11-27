@@ -1,5 +1,6 @@
 // Dev preview: the editor in a browser, without Tauri. For screenshots and visual checks.
 // ?file=<name> loads a corpus file. ?diff shows the diff that a save writes to the file.
+// ?theme=light | dark forces a theme (src/app/theme.ts).
 import '@fontsource/inter/400.css'
 import '@fontsource/inter/600.css'
 import '@fontsource/jetbrains-mono/400.css'
@@ -11,6 +12,7 @@ import './preview.css'
 import { editorViewCtx } from '@milkdown/kit/core'
 import { EditorState } from '@milkdown/kit/prose/state'
 import { diffLines } from 'diff'
+import { applyTheme, type Theme } from '../src/app/theme'
 import { createEditor, markdownOf } from '../src/editor/setup'
 import { load, save } from '../src/markdown/preserve'
 import sample from './sample.md?raw'
@@ -19,6 +21,7 @@ const corpus = import.meta.glob<string>('../tests/corpus/*.md', { query: '?raw',
 const params = new URLSearchParams(location.search)
 const file = params.get('file')
 const text = file ? corpus[`../tests/corpus/${file}`] : sample
+applyTheme((params.get('theme') ?? 'system') as Theme)
 
 const editor = await createEditor(document.getElementById('editor')!)
 const md = markdownOf(editor)

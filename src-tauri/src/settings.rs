@@ -1,5 +1,5 @@
-// App settings that the menu changes, in settings.json in the app config folder. The backend
-// owns them, because it builds the menu at start, before the page loads.
+// App settings of the settings window, in settings.json in the app config folder. The backend
+// owns them, because it sets the theme and handles Cmd+Q before a page loads.
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -9,11 +9,32 @@ use std::path::Path;
 pub struct Settings {
     // Ask before Cmd+Q quits Marky.
     pub warn_before_quit: bool,
+    pub theme: Theme,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { warn_before_quit: true }
+        Self { warn_before_quit: true, theme: Theme::System }
+    }
+}
+
+// System follows the operating system. The page reads the same value (src/app/theme.ts).
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+// The appearance of the native windows: the title bar, the dialogs and, on macOS, the
+// `prefers-color-scheme` of the web views.
+pub fn native_theme(theme: Theme) -> Option<tauri::Theme> {
+    match theme {
+        Theme::System => None,
+        Theme::Light => Some(tauri::Theme::Light),
+        Theme::Dark => Some(tauri::Theme::Dark),
     }
 }
 
@@ -29,6 +50,13 @@ pub fn save(path: &Path, settings: &Settings) -> std::io::Result<()> {
     fs::write(path, serde_json::to_string_pretty(settings)?)
 }
 
+// Saves first: `current` changes only when the save works.
+pub fn save_and_set(path: &Path, current: &mut Settings, new: Settings) -> std::io::Result<()> {
+    save(path, &new)?;
+    *current = new;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -36,7 +64,7 @@ mod tests {
     #[test]
     fn a_missing_file_gives_the_defaults() {
         let dir = tempfile::tempdir().unwrap();
-        assert_eq!(load(&dir.path().join("settings.json")), Settings { warn_before_quit: true });
+        assert_eq!(load(&dir.path().join("settings.json")), Settings { warn_before_quit: true, theme: Theme::System });
     }
 
     #[test]
@@ -51,8 +79,9 @@ mod tests {
     fn a_saved_setting_loads_again() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("config/settings.json");
-        save(&path, &Settings { warn_before_quit: false }).unwrap();
-        assert_eq!(load(&path), Settings { warn_before_quit: false });
+        let settings = Settings { warn_before_quit: false, theme: Theme::Dark };
+        save(&path, &settings).unwrap();
+        assert_eq!(load(&path), settings);
     }
 
     #[test]
@@ -61,5 +90,35 @@ mod tests {
         let path = dir.path().join("settings.json");
         fs::write(&path, "{}").unwrap();
         assert!(load(&path).warn_before_quit);
+        assert_eq!(load(&path).theme, Theme::System);
+    }
+
+    #[test]
+    fn the_theme_is_a_lowercase_word_in_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        fs::write(&path, r#"{"warnBeforeQuit": false, "theme": "light"}"#).unwrap();
+        assert_eq!(load(&path), Settings { warn_before_quit: false, theme: Theme::Light });
+    }
+
+    #[test]
+    fn system_gives_no_native_theme() {
+        assert_eq!(native_theme(Theme::System), None);
+        assert_eq!(native_theme(Theme::Light), Some(tauri::Theme::Light));
+        assert_eq!(native_theme(Theme::Dark), Some(tauri::Theme::Dark));
+    }
+
+    #[test]
+    fn a_failed_save_keeps_the_current_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        // A file where the folder must be: the save fails.
+        let blocker = dir.path().join("config");
+        fs::write(&blocker, "").unwrap();
+        let mut current = Settings::default();
+        let new = Settings { warn_before_quit: false, theme: Theme::Dark };
+        assert!(save_and_set(&blocker.join("settings.json"), &mut current, new.clone()).is_err());
+        assert_eq!(current, Settings::default());
+        save_and_set(&dir.path().join("settings.json"), &mut current, new.clone()).unwrap();
+        assert_eq!(current, new);
     }
 }

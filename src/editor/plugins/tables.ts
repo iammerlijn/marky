@@ -70,12 +70,31 @@ export function cellDecorations(state: EditorState): DecorationSet | null {
   const cells = selectedCells(state)
   if (!cells.length) return null
   const selected = new Set(cells)
+  // For each table: its map and the box of each cell, from one walk over the map.
+  const tables = new Map<number, { map: TableMap; boxes: Map<number, { left: number; top: number; right: number; bottom: number }> }>()
+  const tableOf = (start: number, map: TableMap) => {
+    let table = tables.get(start)
+    if (!table) {
+      const boxes = new Map<number, { left: number; top: number; right: number; bottom: number }>()
+      map.map.forEach((cell, index) => {
+        const row = Math.floor(index / map.width)
+        const col = index % map.width
+        const box = boxes.get(cell)
+        if (box) {
+          box.right = col + 1
+          box.bottom = row + 1
+        } else boxes.set(cell, { left: col, top: row, right: col + 1, bottom: row + 1 })
+      })
+      table = { map, boxes }
+      tables.set(start, table)
+    }
+    return table
+  }
   const decorations = cells.map((pos) => {
     const $cell = state.doc.resolve(pos)
-    const table = $cell.node(-1)
     const start = $cell.start(-1)
-    const map = TableMap.get(table)
-    const { left, top, right, bottom } = map.findCell(pos - start)
+    const { map, boxes } = tableOf(start, TableMap.get($cell.node(-1)))
+    const { left, top, right, bottom } = boxes.get(pos - start)!
     const at = (row: number, col: number) =>
       row >= 0 && row < map.height && col >= 0 && col < map.width && selected.has(start + map.map[row * map.width + col])
     const edges = [

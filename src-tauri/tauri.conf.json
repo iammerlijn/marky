@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Marky",
   "version": "0.1.0",
-  "identifier": "nl.marky.Marky",
+  "identifier": "io.github.iammerlijn.Marky",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:5173",
@@ -36,6 +36,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": {
+      "signingIdentity": "-"
+    },
     "fileAssociations": [
       {
         "ext": [
