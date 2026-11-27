@@ -49,6 +49,8 @@ body {
 .ProseMirror a {
   color: var(--accent);
   text-decoration: none;
+  /* A click opens the link (src/editor/plugins/links.ts). */
+  cursor: pointer;
 }
 .ProseMirror a:hover {
   text-decoration: underline;
