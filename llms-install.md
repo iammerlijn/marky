@@ -81,7 +81,7 @@ You do not need Node, Rust or Xcode. The DMG works on Apple Silicon and Intel Ma
    xattr -dr com.apple.quarantine /Applications/Marky.app
    ```
 
-To update, download the new DMG and replace the app. To remove Marky, delete `/Applications/Marky.app`.
+Marky updates itself: at start, it looks for a new release. When there is one, it asks the user, installs it, and uses it at the next start. To remove Marky, delete `/Applications/Marky.app`.
 
 ## macOS (build from source)
 

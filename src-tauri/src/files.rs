@@ -112,7 +112,11 @@ fn write_temp(target: &Path, text: &str, replaces: bool) -> std::io::Result<Path
 // default permissions of the user (the umask).
 fn create_temp(temp: &Path, text: &str, replaces: bool) -> std::io::Result<File> {
     let mode = if replaces { 0o600 } else { 0o666 };
-    let mut file = File::options().write(true).create_new(true).mode(mode).open(temp)?;
+    let mut file = File::options()
+        .write(true)
+        .create_new(true)
+        .mode(mode)
+        .open(temp)?;
     file.write_all(text.as_bytes())?;
     Ok(file)
 }
@@ -366,7 +370,10 @@ mod tests {
         let temp = dir.path().join("temp");
         create_temp(&temp, "secret\n", true).unwrap();
         assert_eq!(fs::read_to_string(&temp).unwrap(), "secret\n");
-        assert_eq!(fs::metadata(&temp).unwrap().permissions().mode() & 0o777, 0o600);
+        assert_eq!(
+            fs::metadata(&temp).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
     }
 
     #[test]
