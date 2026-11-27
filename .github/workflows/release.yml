@@ -72,6 +72,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+        # A new run replaces the files of a draft, but never the files of a published release.
         run: |
-          gh release create "$GITHUB_REF_NAME" --draft --generate-notes dist/*.dmg dist/*.flatpak \
-            || gh release upload "$GITHUB_REF_NAME" --clobber dist/*.dmg dist/*.flatpak
+          files=(dist/*.dmg dist/*.flatpak)
+          if draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft); then
+            [ "$draft" = true ] || { echo "Release $GITHUB_REF_NAME is published: its files do not change."; exit 1; }
+            gh release upload "$GITHUB_REF_NAME" --clobber "${files[@]}"
+          else
+            gh release create "$GITHUB_REF_NAME" --draft --generate-notes "${files[@]}"
+          fi

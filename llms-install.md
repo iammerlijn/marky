@@ -87,24 +87,30 @@ To update, download the new DMG and replace the app. To remove Marky, delete `/A
 
 Use this only when there is no release, or to build a changed version.
 
-1. Install the Xcode Command Line Tools: `xcode-select --install`.
-2. Install Node and Rust in the versions of `mise.toml`. With [mise](https://mise.jdx.dev), run `mise install` in the repo.
-3. Build the app:
+1. Get the source:
 
    ```sh
    git clone https://github.com/iammerlijn/marky.git
    cd marky
+   ```
+
+2. Install the Xcode Command Line Tools: `xcode-select --install`.
+3. Install Node and Rust in the versions of `mise.toml`. With [mise](https://mise.jdx.dev), run `mise install` in the repo.
+4. Build the app:
+
+   ```sh
    npm ci
    npx tauri build --bundles app
    ```
 
-4. Copy the app to the Applications folder:
+5. Put the app in the Applications folder. Remove the old app first, because `cp -R` copies into a folder that exists.
 
    ```sh
+   rm -rf /Applications/Marky.app
    cp -R src-tauri/target/release/bundle/macos/Marky.app /Applications/
    ```
 
-To update, run `git pull`, then the steps 3 and 4 again. To remove Marky, delete `/Applications/Marky.app`.
+To update, run `git pull` in the checkout, then the steps 4 and 5 again. To remove Marky, delete `/Applications/Marky.app`.
 
 ## Notes
 
