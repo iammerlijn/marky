@@ -6,7 +6,7 @@ use std::hash::{DefaultHasher, Hasher};
 use std::io::{ErrorKind, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -93,8 +93,7 @@ fn write_temp(target: &Path, text: &str, replaces: bool) -> std::io::Result<Path
     }
     let temp = dir.join(format!(".{name}.marky-{}.tmp", std::process::id()));
     let written = (|| {
-        let mut file = File::create_new(&temp)?;
-        file.write_all(text.as_bytes())?;
+        let file = create_temp(&temp, text, replaces)?;
         if replaces {
             copy_metadata(target, &file)?;
         }
@@ -107,6 +106,15 @@ fn write_temp(target: &Path, text: &str, replaces: bool) -> std::io::Result<Path
             Err(e)
         }
     }
+}
+
+// A replacement is private until it gets the permissions of the file. A new file gets the
+// default permissions of the user (the umask).
+fn create_temp(temp: &Path, text: &str, replaces: bool) -> std::io::Result<File> {
+    let mode = if replaces { 0o600 } else { 0o666 };
+    let mut file = File::options().write(true).create_new(true).mode(mode).open(temp)?;
+    file.write_all(text.as_bytes())?;
+    Ok(file)
 }
 
 // Another app can replace the file after the version check. Swap the two files in one step,
@@ -353,6 +361,15 @@ mod tests {
     }
 
     #[test]
+    fn save_writes_the_text_to_a_private_temporary_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let temp = dir.path().join("temp");
+        create_temp(&temp, "secret\n", true).unwrap();
+        assert_eq!(fs::read_to_string(&temp).unwrap(), "secret\n");
+        assert_eq!(fs::metadata(&temp).unwrap().permissions().mode() & 0o777, 0o600);
+    }
+
+    #[test]
     fn a_change_by_another_app_just_before_the_rename_is_a_conflict() {
         let dir = tempfile::tempdir().unwrap();
         let path = file(&dir, "a.md", "theirs\n");
@@ -515,6 +532,16 @@ mod tests {
             fs::metadata(&path).unwrap().permissions().mode() & 0o777,
             0o600
         );
+    }
+
+    #[test]
+    fn create_gives_a_new_file_the_default_permissions() {
+        let dir = tempfile::tempdir().unwrap();
+        let usual = file(&dir, "usual.md", "");
+        let path = dir.path().join("new.md");
+        create(&path, "# New\n").unwrap();
+        let mode = |p: &Path| fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&path), mode(&usual));
     }
 
     #[test]
