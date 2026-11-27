@@ -5,18 +5,20 @@ mod settings;
 // Used only on macOS.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod menu;
-mod watcher;
 #[cfg(target_os = "macos")]
 mod terminate;
 #[cfg(target_os = "macos")]
 mod update;
+mod watcher;
 
 use std::path::Path;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::path::PathBuf;
-use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window};
+use tauri::{
+    AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
+};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use watcher::Watchers;
 
@@ -31,7 +33,10 @@ const SETTINGS_WINDOW: &str = "settings";
 // True when `closed` was the last editor window. Then the settings window closes too, so that
 // Marky quits as before: the app ends when the last window closes.
 fn last_editor_closed<'a>(closed: &str, labels: impl IntoIterator<Item = &'a str>) -> bool {
-    closed != SETTINGS_WINDOW && labels.into_iter().all(|label| label == SETTINGS_WINDOW || label == closed)
+    closed != SETTINGS_WINDOW
+        && labels
+            .into_iter()
+            .all(|label| label == SETTINGS_WINDOW || label == closed)
 }
 
 // The focused editor window, or else the first window.
@@ -39,7 +44,10 @@ fn target_window(app: &AppHandle) -> Option<WebviewWindow> {
     let windows = app.webview_windows();
     let mut editors = windows.values().filter(|w| w.label() != SETTINGS_WINDOW);
     let focused = editors.clone().find(|w| w.is_focused().unwrap_or(false));
-    focused.or_else(|| windows.get("main")).or_else(|| editors.next()).cloned()
+    focused
+        .or_else(|| windows.get("main"))
+        .or_else(|| editors.next())
+        .cloned()
 }
 
 fn add_pending(app: &AppHandle, paths: Vec<String>) {
@@ -67,8 +75,17 @@ fn get_settings(state: State<AppSettings>) -> settings::Settings {
 // From the settings window. Nothing changes when the save fails: the settings window then
 // shows the old values again. All windows get the new settings, so that they change the theme at once.
 #[tauri::command]
-fn set_settings(app: AppHandle, state: State<AppSettings>, settings: settings::Settings) -> Result<(), String> {
-    settings::save_and_set(&state.path, &mut state.settings.lock().unwrap(), settings.clone()).map_err(|e| e.to_string())?;
+fn set_settings(
+    app: AppHandle,
+    state: State<AppSettings>,
+    settings: settings::Settings,
+) -> Result<(), String> {
+    settings::save_and_set(
+        &state.path,
+        &mut state.settings.lock().unwrap(),
+        settings.clone(),
+    )
+    .map_err(|e| e.to_string())?;
     app.set_theme(settings::native_theme(settings.theme));
     let _ = app.emit("settings-changed", &settings);
     Ok(())
@@ -87,16 +104,24 @@ fn show_settings(app: &AppHandle) -> tauri::Result<()> {
     }
     // Linux shows the About section too (src/app/Settings.svelte). The page then sets the height
     // to its content (src/app/settings.ts).
-    let height = if cfg!(target_os = "macos") { 192.0 } else { 226.0 };
-    WebviewWindowBuilder::new(app, SETTINGS_WINDOW, WebviewUrl::App("settings.html".into()))
-        .title("Settings")
-        .inner_size(480.0, height)
-        .resizable(false)
-        .minimizable(false)
-        .maximizable(false)
-        // The page shows the window when it is ready (src/app/settings.ts).
-        .visible(false)
-        .build()?;
+    let height = if cfg!(target_os = "macos") {
+        192.0
+    } else {
+        226.0
+    };
+    WebviewWindowBuilder::new(
+        app,
+        SETTINGS_WINDOW,
+        WebviewUrl::App("settings.html".into()),
+    )
+    .title("Settings")
+    .inner_size(480.0, height)
+    .resizable(false)
+    .minimizable(false)
+    .maximizable(false)
+    // The page shows the window when it is ready (src/app/settings.ts).
+    .visible(false)
+    .build()?;
     Ok(())
 }
 
@@ -110,7 +135,12 @@ async fn open_settings(app: AppHandle) -> Result<(), String> {
 // path, so that each window asks about its unsaved changes. The app ends when the last window
 // closes. Cancel in a window keeps the app open.
 fn quit(app: &AppHandle) {
-    let warn = app.state::<AppSettings>().settings.lock().unwrap().warn_before_quit;
+    let warn = app
+        .state::<AppSettings>()
+        .settings
+        .lock()
+        .unwrap()
+        .warn_before_quit;
     if !warn {
         return close_all_windows(app);
     }
@@ -118,7 +148,10 @@ fn quit(app: &AppHandle) {
     app.dialog()
         .message("Quit Marky?")
         .kind(MessageDialogKind::Warning)
-        .buttons(MessageDialogButtons::OkCancelCustom("Quit".into(), "Cancel".into()))
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Quit".into(),
+            "Cancel".into(),
+        ))
         .show(move |confirmed| {
             if confirmed {
                 close_all_windows(&handle);
@@ -145,7 +178,11 @@ fn open_file(path: String) -> Result<files::Opened, String> {
 }
 
 #[tauri::command]
-fn save_file(path: String, text: String, expected_version: String) -> Result<String, files::SaveError> {
+fn save_file(
+    path: String,
+    text: String,
+    expected_version: String,
+) -> Result<String, files::SaveError> {
     files::save(Path::new(&path), &text, &expected_version)
 }
 
@@ -155,7 +192,12 @@ fn create_file(path: String, text: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn watch(app: AppHandle, window: Window, watchers: State<Watchers>, path: String) -> Result<(), String> {
+fn watch(
+    app: AppHandle,
+    window: Window,
+    watchers: State<Watchers>,
+    path: String,
+) -> Result<(), String> {
     watcher::watch(app, &watchers, window.label(), path).map_err(|e| e.to_string())
 }
 
@@ -180,9 +222,7 @@ async fn new_window(app: AppHandle) -> Result<(), String> {
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true)
         .traffic_light_position(tauri::LogicalPosition::new(16.0, 20.0));
-    builder
-        .build()
-        .map_err(|e| e.to_string())?;
+    builder.build().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -216,7 +256,8 @@ pub fn run() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             {
-                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
                 update::check_in_background(app.handle());
             }
             let path = app.path().app_config_dir()?.join("settings.json");
@@ -227,7 +268,10 @@ pub fn run() {
             // Quit from the Dock uses the same path as Cmd+Q.
             #[cfg(target_os = "macos")]
             terminate::install(app.handle());
-            app.manage(AppSettings { path, settings: Mutex::new(loaded) });
+            app.manage(AppSettings {
+                path,
+                settings: Mutex::new(loaded),
+            });
             Ok(())
         })
         // The quit and settings items are for the app. Each other menu item sends its action to the
@@ -238,7 +282,9 @@ pub fn run() {
                 let _ = show_settings(app);
             }
             action => {
-                let settings = app.get_webview_window(SETTINGS_WINDOW).filter(|w| w.is_focused().unwrap_or(false));
+                let settings = app
+                    .get_webview_window(SETTINGS_WINDOW)
+                    .filter(|w| w.is_focused().unwrap_or(false));
                 if let Some(settings) = settings.filter(|_| action == "close-tab") {
                     let _ = settings.close();
                     return;
@@ -261,14 +307,31 @@ pub fn run() {
         })
         .manage(Watchers::default())
         .manage(PendingFiles(Mutex::new(initial)))
-        .invoke_handler(tauri::generate_handler![quit_app, open_file, save_file, create_file, watch, unwatch, new_window, take_pending_files, bench_mark, get_settings, set_settings, about, open_settings])
+        .invoke_handler(tauri::generate_handler![
+            quit_app,
+            open_file,
+            save_file,
+            create_file,
+            watch,
+            unwatch,
+            new_window,
+            take_pending_files,
+            bench_mark,
+            get_settings,
+            set_settings,
+            about,
+            open_settings
+        ])
         .build(tauri::generate_context!())
         .expect("error while building Marky")
         .run(|_app, _event| {
             // macOS: "Open With" and a drop on the Dock icon.
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Opened { urls } = _event {
-                let paths = urls.iter().filter_map(|url| url.to_file_path().ok()).map(|p| p.to_string_lossy().into_owned());
+                let paths = urls
+                    .iter()
+                    .filter_map(|url| url.to_file_path().ok())
+                    .map(|p| p.to_string_lossy().into_owned());
                 add_pending(_app, paths.collect());
             }
         });
@@ -284,7 +347,10 @@ mod tests {
         assert!(last_editor_closed("main", ["main", "settings"]));
         assert!(last_editor_closed("main", ["settings"]));
         assert!(last_editor_closed("window-2", ["window-2"]));
-        assert!(!last_editor_closed("main", ["main", "window-2", "settings"]));
+        assert!(!last_editor_closed(
+            "main",
+            ["main", "window-2", "settings"]
+        ));
         // Closing the settings window itself does nothing more.
         assert!(!last_editor_closed("settings", ["main", "settings"]));
         assert!(!last_editor_closed("settings", ["settings"]));

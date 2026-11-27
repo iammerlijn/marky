@@ -31,7 +31,9 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     // the windows. See quit() in lib.rs.
     let quit = MenuItem::with_id(app, QUIT, "Quit Marky", true, Some("CmdOrCtrl+Q"))?;
     let marky = SubmenuBuilder::new(app, "Marky")
-        .about(Some(crate::about::metadata(crate::about::about(app.package_info()))))
+        .about(Some(crate::about::metadata(crate::about::about(
+            app.package_info(),
+        ))))
         .separator()
         .item(&settings)
         .separator()
@@ -52,9 +54,19 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         go = go.item(&MenuItem::with_id(app, id, label, true, Some(accelerator))?);
     }
     // Undo and Redo stay out: the editor handles Cmd+Z itself.
-    let edit = SubmenuBuilder::new(app, "Edit").cut().copy().paste().select_all().build()?;
-    let window = SubmenuBuilder::new(app, "Window").minimize().fullscreen().build()?;
-    MenuBuilder::new(app).items(&[&marky, &file.build()?, &edit, &go.build()?, &window]).build()
+    let edit = SubmenuBuilder::new(app, "Edit")
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+    let window = SubmenuBuilder::new(app, "Window")
+        .minimize()
+        .fullscreen()
+        .build()?;
+    MenuBuilder::new(app)
+        .items(&[&marky, &file.build()?, &edit, &go.build()?, &window])
+        .build()
 }
 
 #[cfg(test)]
@@ -63,7 +75,10 @@ mod tests {
     // test on another thread (also with --test-threads=1). The macOS app builds the menu on the
     // main thread in `setup`.
     #[test]
-    #[cfg_attr(target_os = "macos", ignore = "muda makes macOS menu items only on the main thread")]
+    #[cfg_attr(
+        target_os = "macos",
+        ignore = "muda makes macOS menu items only on the main thread"
+    )]
     fn the_marky_menu_has_about_settings_and_quit() {
         let app = tauri::test::mock_app();
         let menu = super::build(app.handle()).unwrap();
@@ -75,7 +90,10 @@ mod tests {
         }
         let marky = menu.items().unwrap()[0].as_submenu().unwrap().clone();
         let items = marky.items().unwrap();
-        assert!(items[0].as_predefined_menuitem().is_some(), "About Marky is the first item");
+        assert!(
+            items[0].as_predefined_menuitem().is_some(),
+            "About Marky is the first item"
+        );
         // Settings… is below About, after a separator.
         assert_eq!(items[2].id(), super::SETTINGS);
         assert_eq!(items[2].as_menuitem().unwrap().text().unwrap(), "Settings…");

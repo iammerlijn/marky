@@ -1,12 +1,12 @@
 // Open and save.
 use serde::Serialize;
+use std::ffi::CString;
 use std::fs::{self, File};
 use std::hash::{DefaultHasher, Hasher};
-use std::ffi::CString;
 use std::io::{ErrorKind, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -81,14 +81,19 @@ pub fn create(path: &Path, text: &str) -> Result<String, String> {
 // temporary file gets the owner, permissions and extended attributes of the file.
 fn write_temp(target: &Path, text: &str, replaces: bool) -> std::io::Result<PathBuf> {
     let dir = target.parent().expect("a file has a parent folder");
-    let name = target.file_name().expect("a file has a name").to_string_lossy();
+    let name = target
+        .file_name()
+        .expect("a file has a name")
+        .to_string_lossy();
     if replaces && !writable(target) {
-        return Err(std::io::Error::new(ErrorKind::PermissionDenied, "The file is read-only."));
+        return Err(std::io::Error::new(
+            ErrorKind::PermissionDenied,
+            "The file is read-only.",
+        ));
     }
     let temp = dir.join(format!(".{name}.marky-{}.tmp", std::process::id()));
     let written = (|| {
-        let mut file = File::create_new(&temp)?;
-        file.write_all(text.as_bytes())?;
+        let file = create_temp(&temp, text, replaces)?;
         if replaces {
             copy_metadata(target, &file)?;
         }
@@ -103,10 +108,27 @@ fn write_temp(target: &Path, text: &str, replaces: bool) -> std::io::Result<Path
     }
 }
 
+// A replacement is private until it gets the permissions of the file. A new file gets the
+// default permissions of the user (the umask).
+fn create_temp(temp: &Path, text: &str, replaces: bool) -> std::io::Result<File> {
+    let mode = if replaces { 0o600 } else { 0o666 };
+    let mut file = File::options()
+        .write(true)
+        .create_new(true)
+        .mode(mode)
+        .open(temp)?;
+    file.write_all(text.as_bytes())?;
+    Ok(file)
+}
+
 // Another app can replace the file after the version check. Swap the two files in one step,
 // then check the file that came out: if it is not the expected version, swap back. A file
 // system that cannot swap gets a second check just before a usual rename.
-fn replace_if_unchanged(temp: &Path, target: &Path, expected_version: &str) -> Result<(), SaveError> {
+fn replace_if_unchanged(
+    temp: &Path,
+    target: &Path,
+    expected_version: &str,
+) -> Result<(), SaveError> {
     let io = |e: std::io::Error| SaveError::Io(e.to_string());
     match exchange(temp, target) {
         Ok(()) => {
@@ -116,7 +138,12 @@ fn replace_if_unchanged(temp: &Path, target: &Path, expected_version: &str) -> R
             exchange(temp, target).map_err(io)?;
             Err(SaveError::Conflict)
         }
-        Err(e) if matches!(e.raw_os_error(), Some(libc::EINVAL | libc::ENOSYS | libc::ENOTSUP)) || e.kind() == ErrorKind::Unsupported => {
+        Err(e)
+            if matches!(
+                e.raw_os_error(),
+                Some(libc::EINVAL | libc::ENOSYS | libc::ENOTSUP)
+            ) || e.kind() == ErrorKind::Unsupported =>
+        {
             if version(target).map_err(io)? != expected_version {
                 return Err(SaveError::Conflict);
             }
@@ -131,13 +158,25 @@ fn c_path(path: &Path) -> std::io::Result<CString> {
 }
 
 fn check(result: libc::c_int) -> std::io::Result<()> {
-    if result == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
 }
 
 #[cfg(target_os = "linux")]
 fn exchange(a: &Path, b: &Path) -> std::io::Result<()> {
     let (a, b) = (c_path(a)?, c_path(b)?);
-    check(unsafe { libc::renameat2(libc::AT_FDCWD, a.as_ptr(), libc::AT_FDCWD, b.as_ptr(), libc::RENAME_EXCHANGE) })
+    check(unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            a.as_ptr(),
+            libc::AT_FDCWD,
+            b.as_ptr(),
+            libc::RENAME_EXCHANGE,
+        )
+    })
 }
 
 #[cfg(target_os = "macos")]
@@ -157,8 +196,14 @@ fn copy_metadata(from: &Path, to: &File) -> std::io::Result<()> {
     let metadata = fs::metadata(from)?;
     let own = to.metadata()?;
     if (metadata.uid(), metadata.gid()) != (own.uid(), own.gid()) {
-        std::os::unix::fs::fchown(to, Some(metadata.uid()), Some(metadata.gid()))
-            .map_err(|_| std::io::Error::new(ErrorKind::PermissionDenied, "Marky cannot keep the owner of the file."))?;
+        std::os::unix::fs::fchown(to, Some(metadata.uid()), Some(metadata.gid())).map_err(
+            |_| {
+                std::io::Error::new(
+                    ErrorKind::PermissionDenied,
+                    "Marky cannot keep the owner of the file.",
+                )
+            },
+        )?;
     }
     to.set_permissions(metadata.permissions())?;
     copy_attributes(from, to);
@@ -175,11 +220,25 @@ fn copy_attributes(from: &Path, to: &File) {
         Some(buffer)
     }
     let Ok(from) = c_path(from) else { return };
-    let Some(names) = bytes(|p, n| unsafe { libc::listxattr(from.as_ptr(), p.cast(), n) }) else { return };
+    let Some(names) = bytes(|p, n| unsafe { libc::listxattr(from.as_ptr(), p.cast(), n) }) else {
+        return;
+    };
     for name in names.split(|&b| b == 0).filter(|n| !n.is_empty()) {
-        let Ok(name) = CString::new(name) else { continue };
-        if let Some(value) = bytes(|p, n| unsafe { libc::getxattr(from.as_ptr(), name.as_ptr(), p, n) }) {
-            unsafe { libc::fsetxattr(to.as_raw_fd(), name.as_ptr(), value.as_ptr().cast(), value.len(), 0) };
+        let Ok(name) = CString::new(name) else {
+            continue;
+        };
+        if let Some(value) =
+            bytes(|p, n| unsafe { libc::getxattr(from.as_ptr(), name.as_ptr(), p, n) })
+        {
+            unsafe {
+                libc::fsetxattr(
+                    to.as_raw_fd(),
+                    name.as_ptr(),
+                    value.as_ptr().cast(),
+                    value.len(),
+                    0,
+                )
+            };
         }
     }
 }
@@ -188,7 +247,14 @@ fn copy_attributes(from: &Path, to: &File) {
 fn copy_attributes(from: &Path, to: &File) {
     let Ok(from) = File::open(from) else { return };
     let flags = libc::COPYFILE_ACL | libc::COPYFILE_XATTR;
-    unsafe { libc::fcopyfile(from.as_raw_fd(), to.as_raw_fd(), std::ptr::null_mut(), flags) };
+    unsafe {
+        libc::fcopyfile(
+            from.as_raw_fd(),
+            to.as_raw_fd(),
+            std::ptr::null_mut(),
+            flags,
+        )
+    };
 }
 
 // Make the rename durable.
@@ -202,7 +268,7 @@ fn sync_folder(target: &Path) {
 mod tests {
     use super::*;
     use std::fs;
-    use std::os::unix::fs::{symlink, PermissionsExt};
+    use std::os::unix::fs::{PermissionsExt, symlink};
 
     fn file(dir: &tempfile::TempDir, name: &str, text: &str) -> std::path::PathBuf {
         let path = dir.path().join(name);
@@ -226,8 +292,16 @@ mod tests {
         let opened = open(&path).unwrap();
         let modified = fs::metadata(&path).unwrap().modified().unwrap();
         fs::write(&path, "bbbb").unwrap();
-        File::options().write(true).open(&path).unwrap().set_modified(modified).unwrap();
-        assert_eq!(save(&path, "mine", &opened.version), Err(SaveError::Conflict));
+        File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(modified)
+            .unwrap();
+        assert_eq!(
+            save(&path, "mine", &opened.version),
+            Err(SaveError::Conflict)
+        );
         assert_eq!(fs::read_to_string(&path).unwrap(), "bbbb");
     }
 
@@ -256,8 +330,14 @@ mod tests {
         let path = file(&dir, "a.md", "old\n");
         let opened = open(&path).unwrap();
         fs::write(&path, "changed by another app, longer\n").unwrap();
-        assert_eq!(save(&path, "mine\n", &opened.version), Err(SaveError::Conflict));
-        assert_eq!(fs::read_to_string(&path).unwrap(), "changed by another app, longer\n");
+        assert_eq!(
+            save(&path, "mine\n", &opened.version),
+            Err(SaveError::Conflict)
+        );
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "changed by another app, longer\n"
+        );
     }
 
     #[test]
@@ -265,7 +345,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = file(&dir, "a.md", "old\n");
         save(&path, "new\n", &open(&path).unwrap().version).unwrap();
-        let names: Vec<_> = fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().file_name()).collect();
+        let names: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
         assert_eq!(names, vec!["a.md"]);
     }
 
@@ -275,7 +358,22 @@ mod tests {
         let path = file(&dir, "a.md", "old\n");
         fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
         save(&path, "new\n", &open(&path).unwrap().version).unwrap();
-        assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o640);
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o640
+        );
+    }
+
+    #[test]
+    fn save_writes_the_text_to_a_private_temporary_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let temp = dir.path().join("temp");
+        create_temp(&temp, "secret\n", true).unwrap();
+        assert_eq!(fs::read_to_string(&temp).unwrap(), "secret\n");
+        assert_eq!(
+            fs::metadata(&temp).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
     }
 
     #[test]
@@ -284,7 +382,10 @@ mod tests {
         let path = file(&dir, "a.md", "theirs\n");
         let temp = file(&dir, "temp", "mine\n");
         let expected = version_of(b"old\n");
-        assert_eq!(replace_if_unchanged(&temp, &path, &expected), Err(SaveError::Conflict));
+        assert_eq!(
+            replace_if_unchanged(&temp, &path, &expected),
+            Err(SaveError::Conflict)
+        );
         assert_eq!(fs::read_to_string(&path).unwrap(), "theirs\n");
     }
 
@@ -294,7 +395,9 @@ mod tests {
         let path = file(&dir, "a.md", "old\n");
         let opened = open(&path).unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o444)).unwrap();
-        assert!(matches!(save(&path, "new\n", &opened.version), Err(SaveError::Io(m)) if m.contains("read-only")));
+        assert!(
+            matches!(save(&path, "new\n", &opened.version), Err(SaveError::Io(m)) if m.contains("read-only"))
+        );
         assert_eq!(fs::read_to_string(&path).unwrap(), "old\n");
     }
 
@@ -302,8 +405,15 @@ mod tests {
     fn save_keeps_the_extended_attributes() {
         let dir = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
         let path = file(&dir, "a.md", "old\n");
-        let (c, name) = (c_path(&path).unwrap(), CString::new("user.marky-test").unwrap());
-        assert_eq!(unsafe { set_attribute(&c, &name, b"value") }, 0, "the file system has no extended attributes");
+        let (c, name) = (
+            c_path(&path).unwrap(),
+            CString::new("user.marky-test").unwrap(),
+        );
+        assert_eq!(
+            unsafe { set_attribute(&c, &name, b"value") },
+            0,
+            "the file system has no extended attributes"
+        );
         save(&path, "new\n", &open(&path).unwrap().version).unwrap();
         let mut value = [0u8; 16];
         let size = unsafe { get_attribute(&c, &name, &mut value) };
@@ -312,22 +422,55 @@ mod tests {
 
     #[cfg(target_os = "linux")]
     unsafe fn set_attribute(path: &CString, name: &CString, value: &[u8]) -> i32 {
-        unsafe { libc::setxattr(path.as_ptr(), name.as_ptr(), value.as_ptr().cast(), value.len(), 0) }
+        unsafe {
+            libc::setxattr(
+                path.as_ptr(),
+                name.as_ptr(),
+                value.as_ptr().cast(),
+                value.len(),
+                0,
+            )
+        }
     }
 
     #[cfg(target_os = "linux")]
     unsafe fn get_attribute(path: &CString, name: &CString, value: &mut [u8]) -> isize {
-        unsafe { libc::getxattr(path.as_ptr(), name.as_ptr(), value.as_mut_ptr().cast(), value.len()) }
+        unsafe {
+            libc::getxattr(
+                path.as_ptr(),
+                name.as_ptr(),
+                value.as_mut_ptr().cast(),
+                value.len(),
+            )
+        }
     }
 
     #[cfg(target_os = "macos")]
     unsafe fn set_attribute(path: &CString, name: &CString, value: &[u8]) -> i32 {
-        unsafe { libc::setxattr(path.as_ptr(), name.as_ptr(), value.as_ptr().cast(), value.len(), 0, 0) }
+        unsafe {
+            libc::setxattr(
+                path.as_ptr(),
+                name.as_ptr(),
+                value.as_ptr().cast(),
+                value.len(),
+                0,
+                0,
+            )
+        }
     }
 
     #[cfg(target_os = "macos")]
     unsafe fn get_attribute(path: &CString, name: &CString, value: &mut [u8]) -> isize {
-        unsafe { libc::getxattr(path.as_ptr(), name.as_ptr(), value.as_mut_ptr().cast(), value.len(), 0, 0) }
+        unsafe {
+            libc::getxattr(
+                path.as_ptr(),
+                name.as_ptr(),
+                value.as_mut_ptr().cast(),
+                value.len(),
+                0,
+                0,
+            )
+        }
     }
 
     #[test]
@@ -337,7 +480,12 @@ mod tests {
         let link = dir.path().join("link.md");
         symlink(&target, &link).unwrap();
         save(&link, "new\n", &open(&link).unwrap().version).unwrap();
-        assert!(fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
         assert_eq!(fs::read_to_string(&target).unwrap(), "new\n");
     }
 
@@ -359,7 +507,10 @@ mod tests {
         let path = file(&dir, "a.md", "old\n");
         let opened = open(&path).unwrap();
         fs::remove_file(&path).unwrap();
-        assert_eq!(save(&path, "new\n", &opened.version), Err(SaveError::Conflict));
+        assert_eq!(
+            save(&path, "new\n", &opened.version),
+            Err(SaveError::Conflict)
+        );
         assert!(!path.exists());
     }
 
@@ -370,7 +521,10 @@ mod tests {
         let version = create(&path, "# New\n").unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "# New\n");
         assert_eq!(version, super::version(&path).unwrap());
-        let names: Vec<_> = fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().file_name()).collect();
+        let names: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
         assert_eq!(names, vec!["new.md"]);
     }
 
@@ -381,7 +535,20 @@ mod tests {
         fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
         create(&path, "new\n").unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "new\n");
-        assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+    }
+
+    #[test]
+    fn create_gives_a_new_file_the_default_permissions() {
+        let dir = tempfile::tempdir().unwrap();
+        let usual = file(&dir, "usual.md", "");
+        let path = dir.path().join("new.md");
+        create(&path, "# New\n").unwrap();
+        let mode = |p: &Path| fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&path), mode(&usual));
     }
 
     #[test]
