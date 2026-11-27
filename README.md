@@ -65,9 +65,34 @@ Back and forward go to the places where you were before: a tab change, an opened
 
 You can also open a file from the command line (`marky notes.md`) or with "Open With" in your file manager.
 
-## Build from source
+## Install
 
-To only install Marky, download the DMG (macOS) or the `.flatpak` file (Linux) of the [latest release](https://github.com/iammerlijn/marky/releases). [llms-install.md](llms-install.md) has the steps.
+Download the file for your system from the [latest release](https://github.com/iammerlijn/marky/releases/latest). Under "Assets":
+
+- **macOS:** `Marky_<version>_universal.dmg`. One DMG works on Apple Silicon and Intel Macs.
+- **Linux:** `Marky_<version>_x86_64.flatpak`.
+
+### macOS
+
+1. Open the DMG and drag Marky to the Applications folder.
+2. Open Marky. Apple did not notarize the app, so macOS says that it cannot check it. Go to System Settings > Privacy & Security and click "Open Anyway". You do this one time only.
+
+To update, download the new DMG and replace the app.
+
+### Linux
+
+Marky gets the GNOME runtime from Flathub:
+
+```sh
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install --user -y Marky_<version>_x86_64.flatpak
+```
+
+To update, download the new file and install it again.
+
+[llms-install.md](llms-install.md) has all the steps, also for a build from source.
+
+## Build from source
 
 Marky is a [Tauri 2](https://tauri.app) app with a Svelte 5 frontend and a [Milkdown](https://milkdown.dev) editor. The tool versions are in `mise.toml` (Node and Rust).
 
@@ -100,6 +125,19 @@ tests/e2e/docker.sh              # app tests in a Debian container (Arch has no 
 ```
 
 The fidelity tests open and save each file in `tests/corpus/` and check that no line changes.
+
+## Release
+
+1. Set the new version in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, then update `Cargo.lock` with `(cd src-tauri && cargo update -p marky)`. Merge the change to `main`.
+2. Tag the merge commit on `main` and push the tag. The tag must be `v` plus the version in `tauri.conf.json`:
+
+   ```sh
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+3. The Release workflow builds the DMG and the Flatpak file, and attaches them to a draft release. If the tag and the version are not the same, the workflow stops.
+4. Check the draft on the [releases page](https://github.com/iammerlijn/marky/releases), and publish it. Only then does the download link in [Install](#install) show the new files.
 
 ## Documentation
 
