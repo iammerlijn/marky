@@ -14,7 +14,10 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { warn_before_quit: true, theme: Theme::System }
+        Self {
+            warn_before_quit: true,
+            theme: Theme::System,
+        }
     }
 }
 
@@ -40,7 +43,10 @@ pub fn native_theme(theme: Theme) -> Option<tauri::Theme> {
 
 // A missing or invalid file gives the defaults.
 pub fn load(path: &Path) -> Settings {
-    fs::read_to_string(path).ok().and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default()
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
 }
 
 pub fn save(path: &Path, settings: &Settings) -> std::io::Result<()> {
@@ -64,7 +70,13 @@ mod tests {
     #[test]
     fn a_missing_file_gives_the_defaults() {
         let dir = tempfile::tempdir().unwrap();
-        assert_eq!(load(&dir.path().join("settings.json")), Settings { warn_before_quit: true, theme: Theme::System });
+        assert_eq!(
+            load(&dir.path().join("settings.json")),
+            Settings {
+                warn_before_quit: true,
+                theme: Theme::System
+            }
+        );
     }
 
     #[test]
@@ -79,7 +91,10 @@ mod tests {
     fn a_saved_setting_loads_again() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("config/settings.json");
-        let settings = Settings { warn_before_quit: false, theme: Theme::Dark };
+        let settings = Settings {
+            warn_before_quit: false,
+            theme: Theme::Dark,
+        };
         save(&path, &settings).unwrap();
         assert_eq!(load(&path), settings);
     }
@@ -98,7 +113,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("settings.json");
         fs::write(&path, r#"{"warnBeforeQuit": false, "theme": "light"}"#).unwrap();
-        assert_eq!(load(&path), Settings { warn_before_quit: false, theme: Theme::Light });
+        assert_eq!(
+            load(&path),
+            Settings {
+                warn_before_quit: false,
+                theme: Theme::Light
+            }
+        );
     }
 
     #[test]
@@ -115,7 +136,10 @@ mod tests {
         let blocker = dir.path().join("config");
         fs::write(&blocker, "").unwrap();
         let mut current = Settings::default();
-        let new = Settings { warn_before_quit: false, theme: Theme::Dark };
+        let new = Settings {
+            warn_before_quit: false,
+            theme: Theme::Dark,
+        };
         assert!(save_and_set(&blocker.join("settings.json"), &mut current, new.clone()).is_err());
         assert_eq!(current, Settings::default());
         save_and_set(&dir.path().join("settings.json"), &mut current, new.clone()).unwrap();

@@ -1,5 +1,5 @@
-# The Rust crate has macOS-only code (the menu bar, "Open With"). Only cargo test: macOS
-# runners are slower and wait longer in the queue.
+# The Rust crate has macOS-only code (the menu bar, "Open With"). Only cargo test and clippy:
+# macOS runners are slower and wait longer in the queue.
 # A separate workflow, because a path filter cannot apply to one job. It runs on each push to
 # main, and on a pull request only when it changes the Rust code, the Rust version (mise.toml)
 # or this file.
@@ -16,17 +16,23 @@ concurrency:
   group: ${{ github.event_name == 'pull_request' && format('ci-macos-{0}', github.ref) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+
 jobs:
   rust-macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           filter: blob:none
-      - uses: jdx/mise-action@v5
-      - uses: Swatinem/rust-cache@v2
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo test
+        working-directory: src-tauri
+      # Clippy also checks the macOS-only code.
+      - run: cargo clippy --locked --all-targets -- -D warnings
         working-directory: src-tauri
