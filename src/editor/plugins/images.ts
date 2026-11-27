@@ -28,7 +28,8 @@ export function isRemote(src: string, base = document.baseURI): boolean {
 interface State {
   allowed: boolean
   // A decoration on each remote image when they are allowed: it makes ProseMirror call
-  // update() on the node views, which then show the images.
+  // update() on the node views, which then show the images. The node stays the same, so
+  // without a change of the decorations there is no update() call.
   set: DecorationSet
 }
 
@@ -69,19 +70,21 @@ function placeholder(node: Node, view: EditorView): HTMLElement {
   return box
 }
 
+const blocked = (node: Node, view: EditorView) => isRemote(node.attrs.src) && !allowed(view)
+
 class ImageView implements NodeView {
   dom: HTMLElement
   private blocked: boolean
 
-  constructor(private node: Node, view: EditorView) {
-    this.blocked = isRemote(node.attrs.src) && !allowed(view)
+  constructor(private node: Node, private view: EditorView) {
+    this.blocked = blocked(node, view)
     this.dom = this.blocked ? placeholder(node, view) : image(node)
   }
 
-  // Make the view again when the image changes, or when a blocked image is now allowed.
-  update(node: Node, decorations: readonly Decoration[]) {
-    if (!node.sameMarkup(this.node)) return false
-    return !(this.blocked && decorations.some((d) => d.spec.remote))
+  // Make the view again when the image changes, or when the image must now load or not. A tab
+  // change keeps the editor view, so a loaded image can come in a document that blocks it.
+  update(node: Node) {
+    return node.sameMarkup(this.node) && blocked(node, this.view) === this.blocked
   }
 
   // The button gets its own clicks: the editor does not select the image for them.

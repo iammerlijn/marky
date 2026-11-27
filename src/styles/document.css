@@ -237,13 +237,21 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 2px 8px;
   border: 1px dashed var(--border);
   border-radius: var(--radius);
   color: var(--text-muted);
   font-size: 13px;
 }
+.ProseMirror .remote-image > span {
+  /* A long alt text, for example a URL, wraps: the page does not scroll sideways. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .ProseMirror .remote-image button {
+  flex-shrink: 0;
   font: inherit;
   color: var(--accent);
   background: none;

@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { EditorState } from '@milkdown/kit/prose/state'
 import { afterEach, expect, test } from 'vitest'
 import { blockedText, isRemote, loadText } from '../src/editor/plugins/images'
 import { open, type OpenDoc } from './helpers'
@@ -67,4 +68,15 @@ test('another document blocks remote images again', async () => {
   await doc.destroy()
   doc = await open('![a](https://example.invalid/a)\n')
   expect(imgs()).toEqual([])
+})
+
+test('a tab change in the same editor view blocks remote images again', async () => {
+  const text = '![a](https://example.invalid/a)\n'
+  doc = await open(text)
+  loadButton().click()
+  expect(imgs()).toEqual(['https://example.invalid/a'])
+  // The same swap that a tab does, with an image that has the same attributes.
+  doc.view.updateState(EditorState.create({ doc: doc.parse(text), plugins: doc.view.state.plugins }))
+  expect(imgs()).toEqual([])
+  expect(placeholders()).toHaveLength(1)
 })
