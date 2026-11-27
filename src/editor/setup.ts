@@ -8,7 +8,9 @@ import {
   schemaCtx,
   serializerCtx,
 } from '@milkdown/kit/core'
+import { Plugin } from '@milkdown/kit/prose/state'
 import { ParserState } from '@milkdown/kit/transformer'
+import { $prose } from '@milkdown/kit/utils'
 import { history } from '@milkdown/kit/plugin/history'
 import { commonmark } from '@milkdown/kit/preset/commonmark'
 import { gfm, remarkGFMPlugin } from '@milkdown/kit/preset/gfm'
@@ -19,6 +21,7 @@ import { codeblock } from './plugins/codeblock'
 import { collapsible } from './plugins/collapsible'
 import { frontmatter } from './plugins/frontmatter'
 import { outline } from './plugins/outline'
+import { places } from './plugins/places'
 import { placeholder } from './plugins/placeholder'
 import { slash } from './plugins/slash'
 import { withTableSelection } from './plugins/tables'
@@ -33,7 +36,18 @@ const stringifyOptions = {
   rule: '-',
 } as const
 
-export async function createEditor(root: HTMLElement, text = ''): Promise<Editor> {
+// Calls onDocChange when the view shows a new document: after an edit, and when a tab changes.
+// Milkdown owns dispatchTransaction, so a plugin view gets the updates. A new state (a tab change)
+// makes the plugin views again, without an update call.
+const docChange = (onDocChange: () => void) =>
+  $prose(() => new Plugin({
+    view: () => {
+      onDocChange()
+      return { update: (view, prev) => void (view.state.doc !== prev.doc && onDocChange()) }
+    },
+  }))
+
+export async function createEditor(root: HTMLElement, text = '', onDocChange = () => {}): Promise<Editor> {
   return Editor.make()
     .config((ctx) => {
       ctx.set(rootCtx, root)
@@ -51,6 +65,8 @@ export async function createEditor(root: HTMLElement, text = ''): Promise<Editor
     .use(placeholder)
     .use(boxDrawing)
     .use(outline)
+    .use(places)
+    .use(docChange(onDocChange))
     .create()
 }
 

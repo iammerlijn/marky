@@ -55,8 +55,8 @@
           {name(tab.path)}
         </button>
         <button class="tab-close" class:dirty={tab.dirty} type="button" onclick={() => onClose(tab.id)} aria-label={`Close ${name(tab.path)}`}>
-          <span class="dot" aria-hidden="true">●</span>
-          <span class="cross" aria-hidden="true">×</span>
+          <svg class="dot" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3" fill="currentColor" /></svg>
+          <svg class="cross" viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 2.5l5 5m0-5l-5 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" /></svg>
         </button>
       </div>
     {/each}
@@ -202,28 +202,23 @@
     cursor: pointer;
   }
   .tab-name {
-    padding: 0 2px 0 12px;
+    padding: 0 6px 0 12px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* The close cross shows on hover. The dot of unsaved edits always shows. */
   .tab-close {
     display: grid;
     place-items: center;
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     padding: 0;
-    margin-right: 4px;
+    margin-right: 6px;
     border-radius: 4px;
-    font-weight: 400;
-    line-height: 1;
-    visibility: hidden;
   }
-  .tab:hover .tab-close,
-  .tab-close.dirty,
-  .tab-close:focus-visible {
-    visibility: visible;
+  .tab-close svg {
+    width: 10px;
+    height: 10px;
   }
   .tab-close:hover {
     background: var(--border);
@@ -234,14 +229,13 @@
     display: none;
   }
   .tab-close.dirty .dot {
-    display: inline;
-    font-size: 9px;
+    display: block;
   }
   .tab-close.dirty:hover .dot {
     display: none;
   }
   .tab-close.dirty:hover .cross {
-    display: inline;
+    display: block;
   }
   /* At the right end of the tab bar. Sticky, so that it stays visible when the tabs scroll. */
   .raw-toggle {

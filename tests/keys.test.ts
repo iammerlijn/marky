@@ -55,3 +55,71 @@ test('Ctrl+Q quits on Linux, and the page does not handle Cmd+Q on macOS', () =>
   expect(shortcut(key('q', { ctrlKey: true }), false)).toBe('quit')
   expect(shortcut(key('q', { metaKey: true }), true)).toBeNull()
 })
+
+describe('back, forward and tabs on macOS', () => {
+  const mac = (k: string, mods: Partial<KeyboardEventInit> = {}) => shortcut(key(k, { metaKey: true, ...mods }), true)
+  test('Cmd+[ goes back and Cmd+] goes forward', () => {
+    expect(mac('[')).toBe('back')
+    expect(mac(']')).toBe('forward')
+  })
+  test('Cmd+Option+Left and Cmd+Option+Right change the tab', () => {
+    expect(mac('ArrowLeft', { altKey: true })).toBe('previous-tab')
+    expect(mac('ArrowRight', { altKey: true })).toBe('next-tab')
+  })
+  test('Cmd+Shift+[ and Cmd+Shift+] change the tab, also when the key gives { and }', () => {
+    expect(mac('[', { shiftKey: true })).toBe('previous-tab')
+    expect(mac(']', { shiftKey: true })).toBe('next-tab')
+    expect(mac('{', { shiftKey: true })).toBe('previous-tab')
+    expect(mac('}', { shiftKey: true })).toBe('next-tab')
+  })
+  test('Ctrl+Tab and Ctrl+Shift+Tab change the tab', () => {
+    expect(shortcut(key('Tab', { ctrlKey: true }), true)).toBe('next-tab')
+    expect(shortcut(key('Tab', { ctrlKey: true, shiftKey: true }), true)).toBe('previous-tab')
+  })
+  test('Cmd+Left and Cmd+Right stay for the cursor', () => {
+    expect(mac('ArrowLeft')).toBeNull()
+    expect(mac('ArrowRight')).toBeNull()
+  })
+  test('the Linux keys do nothing', () => {
+    expect(shortcut(key('ArrowLeft', { altKey: true }), true)).toBeNull()
+    expect(shortcut(key('PageUp', { ctrlKey: true }), true)).toBeNull()
+    expect(shortcut(key('[', { ctrlKey: true }), true)).toBeNull()
+  })
+  test('Tab and Shift+Tab are not shortcuts: they move list items', () => {
+    expect(shortcut(key('Tab'), true)).toBeNull()
+    expect(shortcut(key('Tab', { shiftKey: true }), true)).toBeNull()
+  })
+})
+
+describe('back, forward and tabs on Linux', () => {
+  const linux = (k: string, mods: Partial<KeyboardEventInit>) => shortcut(key(k, mods), false)
+  test('Alt+Left goes back and Alt+Right goes forward', () => {
+    expect(linux('ArrowLeft', { altKey: true })).toBe('back')
+    expect(linux('ArrowRight', { altKey: true })).toBe('forward')
+  })
+  test('Ctrl+PageUp and Ctrl+PageDown change the tab', () => {
+    expect(linux('PageUp', { ctrlKey: true })).toBe('previous-tab')
+    expect(linux('PageDown', { ctrlKey: true })).toBe('next-tab')
+  })
+  test('Ctrl+Tab and Ctrl+Shift+Tab change the tab', () => {
+    expect(linux('Tab', { ctrlKey: true })).toBe('next-tab')
+    expect(linux('Tab', { ctrlKey: true, shiftKey: true })).toBe('previous-tab')
+  })
+  test('Tab and Shift+Tab are not shortcuts', () => {
+    expect(linux('Tab', {})).toBeNull()
+    expect(linux('Tab', { shiftKey: true })).toBeNull()
+  })
+  test('other combinations do nothing', () => {
+    expect(linux('ArrowLeft', { ctrlKey: true })).toBeNull()
+    expect(linux('ArrowLeft', { altKey: true, shiftKey: true })).toBeNull()
+    expect(linux('PageUp', { ctrlKey: true, shiftKey: true })).toBeNull()
+    expect(linux('[', { ctrlKey: true })).toBeNull()
+    expect(linux('ArrowLeft', { metaKey: true, altKey: true })).toBeNull()
+  })
+})
+
+test('Ctrl+, opens the settings on Linux, and the page does not handle Cmd+, on macOS', () => {
+  expect(shortcut(key(',', { ctrlKey: true }), false)).toBe('settings')
+  expect(shortcut(key(',', { metaKey: true }), true)).toBeNull()
+  expect(shortcut(key(',', { metaKey: true }), false)).toBeNull()
+})
