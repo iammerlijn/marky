@@ -1,7 +1,7 @@
 // Screenshots and a screen recording of the dev preview, in Playwright WebKit.
 // Runs in the Playwright container (see dev/README.md). OUT is the output folder.
 import { renameSync } from 'node:fs'
-import { webkit } from 'playwright'
+import { webkit } from '@playwright/test'
 
 const base = 'http://127.0.0.1:5173/dev/preview.html'
 const out = process.env.OUT ?? '/out'
