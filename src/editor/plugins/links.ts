@@ -16,11 +16,17 @@ export function openableUrl(href: string): string | null {
   }
 }
 
-// Replaced in tests and in the dev preview, which have no backend.
+// Replaced in tests and in the dev preview, which have no backend. When the system cannot open
+// the link (for example no mail app), a message says so.
 export const linkOpener = {
   open: async (url: string) => {
     const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('open_link', { url })
+    try {
+      await invoke('open_link', { url })
+    } catch (error) {
+      const { message } = await import('@tauri-apps/plugin-dialog')
+      await message(`Marky could not open the link.\n\n${String(error)}`, { kind: 'error' })
+    }
   },
 }
 
