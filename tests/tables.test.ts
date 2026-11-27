@@ -98,3 +98,37 @@ describe('cells that a text selection covers', () => {
     expect(selected()).toEqual([])
   })
 })
+
+// One outline goes around the selected cells: each cell has a class for each outer edge.
+describe('the outline of the selected cells', () => {
+  const edges = () =>
+    Object.fromEntries(
+      [...doc.view.dom.querySelectorAll('.selectedCell')].map((cell) => [
+        cell.textContent,
+        ['top', 'bottom', 'left', 'right'].filter((edge) => cell.classList.contains(`selected-${edge}`)),
+      ]),
+    )
+
+  test('a cell selection of the whole table has an outline around the table', async () => {
+    doc = await open(text)
+    const { view } = doc
+    const $a = view.state.doc.resolve(cellStart('A') - 2)
+    const $b = view.state.doc.resolve(cellStart('two') - 2)
+    view.dispatch(view.state.tr.setSelection(CellSelection.create(view.state.doc, $a.pos, $b.pos)))
+    expect(edges()).toEqual({ A: ['top', 'left'], B: ['top', 'right'], one: ['bottom', 'left'], two: ['bottom', 'right'] })
+  })
+
+  test('one selected cell has all four edges', async () => {
+    doc = await open(text)
+    const { view } = doc
+    const pos = view.state.doc.resolve(cellStart('one') - 2).pos
+    view.dispatch(view.state.tr.setSelection(CellSelection.create(view.state.doc, pos)))
+    expect(edges()).toEqual({ one: ['top', 'bottom', 'left', 'right'] })
+  })
+
+  test('the cells that a text selection covers get the edges of their block', async () => {
+    doc = await open(text)
+    select(1, cellStart('two') + 1)
+    expect(edges()).toEqual({ A: ['top', 'left'], B: ['top', 'bottom', 'right'], one: ['bottom', 'left', 'right'] })
+  })
+})
