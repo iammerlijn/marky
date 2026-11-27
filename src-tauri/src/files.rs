@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::ffi::CString;
 use std::fs::{self, File};
 use std::hash::{DefaultHasher, Hasher};
-use std::io::{ErrorKind, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
@@ -36,12 +36,41 @@ pub fn version(path: &Path) -> std::io::Result<String> {
     fs::read(path).map(|bytes| version_of(&bytes))
 }
 
+// A larger file does not open: reading it, sending it to the page and showing it can use all
+// the memory. The page shows a smaller large file as markdown source (src/app/tabs.ts).
+pub const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
+
 pub fn open(path: &Path) -> Result<Opened, String> {
-    let bytes = fs::read(path).map_err(|e| e.to_string())?;
+    open_with_limit(path, MAX_FILE_BYTES)
+}
+
+fn open_with_limit(path: &Path, limit: u64) -> Result<Opened, String> {
+    let file = File::open(path).map_err(|e| e.to_string())?;
+    let size = file.metadata().map_err(|e| e.to_string())?.len();
+    if size > limit {
+        return Err(too_large(size, limit));
+    }
+    // The file can grow after the size check: read one byte more than the limit, not more.
+    let mut bytes = Vec::with_capacity(size as usize);
+    file.take(limit + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() as u64 > limit {
+        return Err(too_large(bytes.len() as u64, limit));
+    }
     // The version of the bytes that were read, not of the file a moment later.
     let version = version_of(&bytes);
     let text = String::from_utf8(bytes).map_err(|_| "The file is not UTF-8 text.".to_string())?;
     Ok(Opened { text, version })
+}
+
+fn too_large(size: u64, limit: u64) -> String {
+    let mb = |bytes: u64| bytes as f64 / (1024.0 * 1024.0);
+    format!(
+        "The file is too large to open ({:.1} MB). Marky opens files up to {:.0} MB.",
+        mb(size),
+        mb(limit)
+    )
 }
 
 pub fn save(path: &Path, text: &str, expected_version: &str) -> Result<String, SaveError> {
@@ -283,6 +312,26 @@ mod tests {
         let opened = open(&path).unwrap();
         assert_eq!(opened.text, "# Title\n");
         assert_eq!(opened.version, version(&path).unwrap());
+    }
+
+    #[test]
+    fn open_refuses_a_file_above_the_limit_and_opens_a_file_at_the_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = file(&dir, "a.md", "12345");
+        assert_eq!(open_with_limit(&path, 5).unwrap().text, "12345");
+        let error = open_with_limit(&path, 4).unwrap_err();
+        assert!(
+            error.starts_with("The file is too large to open"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn the_size_message_gives_the_size_and_the_limit_in_megabytes() {
+        assert_eq!(
+            too_large(20 * 1024 * 1024 + 300 * 1024, MAX_FILE_BYTES),
+            "The file is too large to open (20.3 MB). Marky opens files up to 16 MB."
+        );
     }
 
     #[test]

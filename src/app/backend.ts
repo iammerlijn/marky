@@ -13,6 +13,8 @@ export type SaveError = { kind: 'Conflict' } | { kind: 'Io'; message: string }
 
 export interface Backend {
   open(path: string): Promise<Opened>
+  // The version of the file on disk, without the text: also for a file that is too large to open.
+  version(path: string): Promise<string>
   // Returns the new version. Throws a SaveError.
   save(path: string, text: string, expectedVersion: string): Promise<string>
   // Save As: write a new file, or replace the file that the user chose. Returns the version.
@@ -23,6 +25,7 @@ export interface Backend {
 
 export const tauriBackend: Backend = {
   open: (path) => invoke<Opened>('open_file', { path }),
+  version: (path) => invoke<string>('file_version', { path }),
   save: (path, text, expectedVersion) => invoke<string>('save_file', { path, text, expectedVersion }),
   create: (path, text) => invoke<string>('create_file', { path, text }),
   watch: (path) => invoke('watch', { path }),
