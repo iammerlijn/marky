@@ -10,11 +10,23 @@
 // that such a selection covers get the class `selectedCell`, like the cells of a cell selection.
 // The cells at the edge of the selected block get the classes of those edges (for example
 // `selected-top`), so that one outline goes around the block.
-import { tableEditingPlugin } from '@milkdown/kit/preset/gfm'
-import type { EditorState, Selection } from '@milkdown/kit/prose/state'
+// Backspace and Delete also go on past an empty cell: see deleteInTable.
+import { tableEditingPlugin, tableSchema } from '@milkdown/kit/preset/gfm'
+import { keydownHandler } from '@milkdown/kit/prose/keymap'
+import type { Command, EditorState, Selection } from '@milkdown/kit/prose/state'
 import { TextSelection } from '@milkdown/kit/prose/state'
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view'
-import { CellSelection, TableMap, cellAround, fixTables, inSameTable, tableEditing } from '@milkdown/kit/prose/tables'
+import {
+  CellSelection,
+  TableMap,
+  cellAround,
+  deleteRow,
+  deleteTable,
+  fixTables,
+  inSameTable,
+  selectedRect,
+  tableEditing,
+} from '@milkdown/kit/prose/tables'
 import { $prose } from '@milkdown/kit/utils'
 
 // A text selection that goes out of a table: one end is not in a cell of the table of the other end.
@@ -77,6 +89,28 @@ export function cellDecorations(state: EditorState): DecorationSet | null {
   return DecorationSet.create(state.doc, decorations)
 }
 
+// Backspace or Delete in an empty cell selects its row. With whole rows selected, the next press
+// deletes them, or the table when they are all its rows. The header row stays: a GFM table must
+// have one, so with the header row selected the press only clears the cells (the default). A
+// table with only its header row is valid (see tableWithoutRows).
+export const deleteInTable: Command = (state, dispatch) => {
+  const { selection } = state
+  if (selection instanceof CellSelection) {
+    if (!selection.isRowSelection()) return false
+    if (selection.isColSelection()) return deleteTable(state, dispatch)
+    const { top, bottom, map, tableStart } = selectedRect(state)
+    if (selectedRect(state).top === 0) return false
+    return deleteRow(state, dispatch)
+  }
+  const $cell = selection.empty ? cellAround(selection.$from) : null
+  const cell = $cell?.nodeAfter
+  if (!$cell || !cell || cell.childCount !== 1 || cell.firstChild!.content.size > 0) return false
+  dispatch?.(state.tr.setSelection(CellSelection.rowSelection($cell)))
+  return true
+}
+
+const deleteKeys = keydownHandler({ Backspace: deleteInTable, Delete: deleteInTable })
+
 const SHIFT_ARROWS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
 
 export const tableSelection = $prose(() => {
@@ -88,12 +122,21 @@ export const tableSelection = $prose(() => {
   plugin.spec.appendTransaction = (trs, old, state: EditorState) =>
     leavesTable(state.selection) ? fixTables(state, old) : appendTransaction!.call(plugin, trs, old, state)
   plugin.props.handleKeyDown = function (view, event) {
+    if (deleteKeys(view, event)) return true
     if (event.shiftKey && SHIFT_ARROWS.has(event.key) && leavesTable(view.state.selection)) return false
     return handleKeyDown!.call(this, view, event)
   }
   return plugin
 })
 
-// The GFM preset with this table editing in place of its own, at the same place.
-export const withTableSelection = <T>(plugins: T[]): T[] =>
-  plugins.map((plugin) => (plugin === (tableEditingPlugin as unknown) ? (tableSelection as T) : plugin))
+// GFM allows a table with only a header row. The schema of Milkdown needs one more row: without
+// this, the last row cannot be deleted, and such a table in a file gets an empty row.
+const tableWithoutRows = tableSchema.extendSchema((prev) => (ctx) => ({ ...prev(ctx), content: 'table_header_row table_row*' }))
+
+// The GFM preset with this table editing and table schema in place of its own, at the same place.
+const replacements = new Map<unknown, unknown>([
+  [tableEditingPlugin, tableSelection],
+  [tableSchema.ctx, tableWithoutRows.ctx],
+  [tableSchema.node, tableWithoutRows.node],
+])
+export const withTableSelection = <T>(plugins: T[]): T[] => plugins.map((plugin) => (replacements.get(plugin) as T) ?? plugin)
