@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 // Code blocks and Mermaid.
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state'
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from 'vitest'
+import { applyTheme } from '../src/app/theme'
 import { loaders, WORKER_IDLE_MS, workerTokenizer } from '../src/editor/plugins/codeblock'
 import { open, type OpenDoc } from './helpers'
 
@@ -276,5 +277,16 @@ describe('mermaid', () => {
     media.matches = true
     media.listeners.forEach((listener) => listener())
     await vi.waitFor(() => expect(themes).toEqual(['neutral', 'dark']))
+  })
+
+  test('a change of the chosen theme renders the diagram again', async () => {
+    // The chosen theme is on <html>: remove it after the test.
+    onTestFinished(() => applyTheme('system'))
+    doc = await open('```mermaid\ngraph TD\n  A --> B\n```\n')
+    await vi.waitFor(() => expect(themes).toEqual(['neutral']))
+    applyTheme('dark')
+    await vi.waitFor(() => expect(themes).toEqual(['neutral', 'dark']))
+    applyTheme('light')
+    await vi.waitFor(() => expect(themes).toEqual(['neutral', 'dark', 'neutral']))
   })
 })

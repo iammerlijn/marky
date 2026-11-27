@@ -1,6 +1,7 @@
 // The Rust backend. Tests use a fake with files in memory.
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import type { Theme } from './theme'
 
 export interface Opened {
   text: string
@@ -46,4 +47,37 @@ export function onOpenFiles(handler: (paths: string[]) => Promise<void>, takeNow
     if (takeNow) await take()
     return unlisten
   })
+}
+
+// The app settings (src-tauri/src/settings.rs). The settings window changes them. Each window
+// gets `settings-changed` after a change.
+export interface Settings {
+  warnBeforeQuit: boolean
+  theme: Theme
+}
+
+// For the About section of the settings window on Linux (src-tauri/src/about.rs).
+export interface About {
+  name: string
+  version: string
+  copyright: string
+  license: string
+  repository: string
+}
+
+export const getSettings = () => invoke<Settings>('get_settings')
+export const setSettings = (settings: Settings) => invoke('set_settings', { settings })
+export const onSettingsChanged = (handler: (settings: Settings) => void) =>
+  listen<Settings>('settings-changed', ({ payload }) => handler(payload))
+export const getAbout = () => invoke<About>('about')
+
+// The changes of the settings window. Each change returns the settings to show. After a failed
+// save these are the last saved settings, not the choice before the click: that choice can be
+// another change that is not saved either. The backend also keeps the last saved settings.
+export function settingsSaver(saved: Settings, save: (settings: Settings) => Promise<unknown>) {
+  return (next: Settings): Promise<Settings> =>
+    save(next).then(
+      () => (saved = next),
+      () => saved,
+    )
 }

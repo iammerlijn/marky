@@ -117,3 +117,9 @@ describe('back, forward and tabs on Linux', () => {
     expect(linux('ArrowLeft', { metaKey: true, altKey: true })).toBeNull()
   })
 })
+
+test('Ctrl+, opens the settings on Linux, and the page does not handle Cmd+, on macOS', () => {
+  expect(shortcut(key(',', { ctrlKey: true }), false)).toBe('settings')
+  expect(shortcut(key(',', { metaKey: true }), true)).toBeNull()
+  expect(shortcut(key(',', { metaKey: true }), false)).toBeNull()
+})

@@ -18,12 +18,13 @@ import { JUMP_EVENT } from '../editor/plugins/outline'
 import { anchor, release, restore, type Anchor } from '../editor/plugins/places'
 import { createEditor, markdownOf } from '../editor/setup'
 import App from './App.svelte'
-import { onFileChanged, onOpenFiles, tauriBackend } from './backend'
+import { getSettings, onFileChanged, onOpenFiles, onSettingsChanged, tauriBackend } from './backend'
 import { History } from './history'
 import { listenForShortcuts, modLabel, type Action } from './keys'
 import type { RawEditor } from './raw'
 import { addRecent, recentFiles, removeRecent } from './recent'
 import { Tabs, type CloseAnswer, type Tab } from './tabs'
+import { followTheme } from './theme'
 
 // For dev/measure-app.sh (see bench_mark at the end of this file).
 void invoke('bench_mark', { label: 'script' })
@@ -31,6 +32,8 @@ void invoke('bench_mark', { label: 'script' })
 // So load the fonts now, and wait for them before the first file opens.
 const fonts = Promise.all(['400 1em Inter', '600 1em Inter', "400 1em 'JetBrains Mono'"].map((f) => document.fonts.load(f)))
 const appWindow = getCurrentWindow()
+// The theme from the settings, before the first diagram renders. The window is still hidden.
+await followTheme(getSettings, onSettingsChanged)
 // macOS hides the window buttons in full screen: then the tab bar needs no room for them.
 const syncFullscreen = async () =>
   document.documentElement.classList.toggle('fullscreen', await appWindow.isFullscreen())
@@ -274,7 +277,7 @@ function perform(action: Action) {
   else if (action === 'previous-tab' || action === 'next-tab') {
     tabs.activateNext(action === 'next-tab' ? 1 : -1)
     focusActive()
-  }
+  } else if (action === 'settings') void run(() => invoke('open_settings'))
 }
 
 listenForShortcuts(perform)

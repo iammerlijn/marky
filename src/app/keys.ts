@@ -1,6 +1,6 @@
 // App shortcuts: Cmd on macOS, Ctrl on Linux.
 
-export type Action = 'open' | 'save' | 'close-tab' | 'new-tab' | 'new-window' | 'toggle-raw' | 'quit' | Navigation
+export type Action = 'open' | 'save' | 'close-tab' | 'new-tab' | 'new-window' | 'toggle-raw' | 'quit' | 'settings' | Navigation
 export type Navigation = 'back' | 'forward' | 'previous-tab' | 'next-tab'
 
 const actions: Record<string, Action> = { o: 'open', s: 'save', w: 'close-tab', t: 'new-tab', n: 'new-window' }
@@ -16,6 +16,8 @@ export function shortcut(event: KeyboardEvent, mac = isMac): Action | null {
   if (key === 'm') return event.shiftKey ? 'toggle-raw' : null
   // On macOS, Cmd+Q is in the menu bar (src-tauri/src/menu.rs).
   if (key === 'q') return mac ? null : 'quit'
+  // On macOS, Cmd+, is "Settings…" in the menu bar.
+  if (key === ',') return mac ? null : 'settings'
   return actions[key] ?? null
 }
 

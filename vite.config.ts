@@ -5,7 +5,8 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [svelte()],
   // The app uses top-level await. WKWebView and WebKitGTK support it.
-  build: { target: 'esnext' },
+  // Two pages: the editor window and the settings window.
+  build: { target: 'esnext', rolldownOptions: { input: ['index.html', 'settings.html'] } },
   // The highlight worker loads each Shiki language as a chunk: that needs an ES module worker.
   worker: { format: 'es' },
   clearScreen: false,
