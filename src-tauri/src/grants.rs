@@ -59,12 +59,17 @@ impl Grants {
         state.newest.retain(|p| p != path);
         state.newest.insert(0, path.to_path_buf());
         state.newest.truncate(KEPT);
-        // A failed write loses only the grants for the next start.
+        // A failed write loses only the new grants for the next start. The write goes to a
+        // temporary file first, so that a stop during the write keeps the old file. The lock
+        // is held, so no other grant writes the same temporary file.
         if let Ok(text) = serde_json::to_string(&state.newest) {
             if let Some(folder) = self.file.parent() {
                 let _ = std::fs::create_dir_all(folder);
             }
-            let _ = std::fs::write(&self.file, text);
+            let temp = self.file.with_extension("json.tmp");
+            if std::fs::write(&temp, text).is_ok() {
+                let _ = std::fs::rename(&temp, &self.file);
+            }
         }
     }
 
@@ -187,6 +192,25 @@ mod tests {
         assert!(
             restarted
                 .check_open("main", Path::new(&format!("/notes/{KEPT}.md")))
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn a_grant_replaces_the_file_and_leaves_no_temporary_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let grants = grants(&dir);
+        grants.grant("main", Path::new("/notes/a.md"));
+        grants.grant("main", Path::new("/notes/b.md"));
+        let names: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names, ["grants.json"]);
+        let restarted = Grants::load(dir.path().join("grants.json"));
+        assert!(
+            restarted
+                .check_open("main", Path::new("/notes/a.md"))
                 .is_ok()
         );
     }
