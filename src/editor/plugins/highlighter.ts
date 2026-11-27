@@ -1,7 +1,8 @@
 // Shiki highlighting of one code block. It runs in a worker (highlight.worker.ts): Shiki makes
 // much garbage, and WebKit gives that memory back only when the worker stops (issue 2).
 import type { HighlighterCore } from 'shiki/core'
-import { languageModule } from './languages'
+import { grammars } from './grammars'
+import { languageName } from './languages'
 
 export interface Span {
   from: number
@@ -31,8 +32,10 @@ export function createTokenizer(): Tokenize {
           engine: createJavaScriptRegexEngine(),
         })
       })()
-      const language = languageModule(name)
-      loading = language ? highlighter.then((h) => h.loadLanguage(language)).then(() => true) : Promise.resolve(false)
+      const language = languageName(name)
+      loading = language
+        ? highlighter.then((h) => h.loadLanguage(grammars[language])).then(() => true)
+        : Promise.resolve(false)
       languages.set(name, loading)
     }
     return loading

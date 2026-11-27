@@ -11,7 +11,7 @@ export default defineConfig({
   worker: { format: 'es' },
   clearScreen: false,
   // The Playwright tests in tests/visual are *.spec.ts and run with `npm run test:visual`.
-  test: { include: ['tests/**/*.test.ts'] },
+  test: { include: ['tests/**/*.test.ts'], setupFiles: ['tests/setup.ts'] },
   // The Rust build output must not reload the page.
   server: { watch: { ignored: ['**/src-tauri/**'] } },
 })
