@@ -43,6 +43,7 @@
     conflict: 'This file changed on disk. Marky did not save.',
     deleted: 'This file was deleted or renamed on disk.',
     'raw-only': 'Marky cannot show this file as a document, so it shows the markdown source. A save writes the source exactly.',
+    large: 'This file is large, so Marky shows the markdown source. As a document, it can take some seconds to open.',
   }
 </script>
 
@@ -85,6 +86,9 @@
     {#if view.active.banner === 'changed' || view.active.banner === 'conflict'}
       <button type="button" onclick={() => onKeepMine(view.active!.id)}>Keep mine</button>
       <button type="button" onclick={() => onLoad(view.active!.id)}>Load from disk</button>
+    {/if}
+    {#if view.active.banner === 'large'}
+      <button type="button" onclick={onToggleRaw}>Show as Document</button>
     {/if}
   </div>
 {/if}

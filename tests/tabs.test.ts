@@ -6,7 +6,7 @@ import { TextSelection } from '@milkdown/kit/prose/state'
 import type { EditorView } from '@milkdown/kit/prose/view'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import type { Backend, Opened, SaveError } from '../src/app/backend'
-import { Tabs, type Tab } from '../src/app/tabs'
+import { LARGE_TEXT, Tabs, type Tab } from '../src/app/tabs'
 import { createEditor, markdownOf } from '../src/editor/setup'
 
 // Files in memory. The version changes on each write, as the modification time does on disk.
@@ -51,6 +51,8 @@ let scrollTop = 0
 // The answer of the Save As dialog.
 let chosenPath: string | null = null
 let destroy: () => Promise<void>
+// The texts that the block map read.
+let reads: string[] = []
 
 beforeEach(async () => {
   backend = new FakeBackend()
@@ -65,7 +67,9 @@ beforeEach(async () => {
   // causes this yet, but Marky must stay safe when one does.
   const md = markdownOf(editor)
   const read = md.read
+  reads = []
   md.read = (text) => {
+    reads.push(text)
     const result = read(text)
     if (text.includes('BREAK_THE_BLOCK_MAP')) result.blocks.push({ start: text.length, end: text.length, hidden: false })
     return result
@@ -636,6 +640,66 @@ describe('a file that the block map cannot read', () => {
     const version = backend.write('/broken.md', broken + 'Changed.\n')
     await tabs.changed('/broken.md', version)
     expect(tabs.active?.rawText).toBe(broken + 'Changed.\n')
+  })
+})
+
+describe('a large file', () => {
+  // One long paragraph: the parse is fast in the tests that show it as a document.
+  const large = '# Big\n\n' + 'a'.repeat(LARGE_TEXT) + '\n'
+  const parsed = (text: string) => reads.includes(text)
+
+  test('opens in raw mode with a message, and the block map does not read it', async () => {
+    backend.write('/big.md', large)
+    await tabs.open('/big.md')
+    expect(tabs.active?.rawText).toBe(large)
+    expect(tabs.active?.banner).toBe('large')
+    expect(parsed(large)).toBe(false)
+  })
+
+  test('a file of LARGE_TEXT characters still opens as a document', async () => {
+    const limit = 'a'.repeat(LARGE_TEXT)
+    backend.write('/limit.md', limit)
+    await tabs.open('/limit.md')
+    expect(tabs.active?.rawText).toBeNull()
+    expect(tabs.active?.banner).toBeNull()
+  })
+
+  test('a save writes the source exactly, and does not parse it', async () => {
+    backend.write('/big.md', large)
+    await tabs.open('/big.md')
+    tabs.setRawText(large + 'More.\n')
+    expect(await tabs.save()).toBe(true)
+    expect(backend.files.get('/big.md')!.text).toBe(large + 'More.\n')
+    expect(parsed(large + 'More.\n')).toBe(false)
+    expect(tabs.active?.banner).toBe('large')
+  })
+
+  test('"Show as Document" parses it and removes the message', async () => {
+    backend.write('/big.md', large)
+    await tabs.open('/big.md')
+    tabs.leaveRaw()
+    expect(tabs.active?.rawText).toBeNull()
+    expect(tabs.active?.banner).toBeNull()
+    expect(docText()).toBe('Big' + 'a'.repeat(LARGE_TEXT))
+  })
+
+  test('after "Show as Document", a change on disk keeps the document', async () => {
+    backend.write('/big.md', large)
+    await tabs.open('/big.md')
+    tabs.leaveRaw()
+    const version = backend.write('/big.md', large + '\nChanged.\n')
+    await tabs.changed('/big.md', version)
+    expect(tabs.active?.rawText).toBeNull()
+    expect(docText()).toBe('Big' + 'a'.repeat(LARGE_TEXT) + 'Changed.')
+  })
+
+  test('a document that becomes large on disk reloads in raw mode', async () => {
+    await tabs.open('/a.md')
+    const version = backend.write('/a.md', large)
+    await tabs.changed('/a.md', version)
+    expect(tabs.active?.rawText).toBe(large)
+    expect(tabs.active?.banner).toBe('large')
+    expect(parsed(large)).toBe(false)
   })
 })
 

@@ -3,7 +3,14 @@
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state'
 import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from 'vitest'
 import { applyTheme } from '../src/app/theme'
-import { loaders, WORKER_IDLE_MS, workerTokenizer } from '../src/editor/plugins/codeblock'
+import {
+  loaders,
+  MAX_DIAGRAM_CHARS,
+  MAX_DIAGRAM_EDGES,
+  MAX_HIGHLIGHT_CHARS,
+  WORKER_IDLE_MS,
+  workerTokenizer,
+} from '../src/editor/plugins/codeblock'
 import { open, type OpenDoc } from './helpers'
 
 let doc: OpenDoc
@@ -154,6 +161,20 @@ describe('code blocks', () => {
     expect(doc.view.dom.querySelectorAll('.code-block code span[style]')).toHaveLength(0)
     expect(blocks()[0].querySelector('code')!.textContent).toBe('some code')
   })
+
+  test('a code block longer than MAX_HIGHLIGHT_CHARS shows plain code, and a block at the limit is highlighted', async () => {
+    const original = loaders.tokenize
+    const requested: number[] = []
+    loaders.tokenize = async (code) => (requested.push(code.length), [])
+    try {
+      const code = (length: number) => '```ts\n' + 'x'.repeat(length) + '\n```\n'
+      doc = await open(code(MAX_HIGHLIGHT_CHARS + 1) + '\n' + code(MAX_HIGHLIGHT_CHARS))
+      await new Promise((r) => setTimeout(r, 50))
+      expect(requested).toEqual([MAX_HIGHLIGHT_CHARS])
+    } finally {
+      loaders.tokenize = original
+    }
+  })
 })
 
 describe('highlight worker', () => {
@@ -222,19 +243,27 @@ describe('mermaid', () => {
   let loads = 0
   const themes: string[] = []
   let render: (id: string, source: string) => Promise<{ svg: string }>
+  let configs: { maxTextSize?: number; maxEdges?: number }[] = []
+  let renders = 0
   const original = loaders.mermaid
 
   beforeEach(() => {
     loads = 0
+    renders = 0
+    configs = []
     themes.length = 0
     render = async (_id, source) => {
+      renders++
       if (source.includes('bad')) throw new Error('Parse error on line 2')
       return { svg: `<svg data-source="${source.length}"></svg>` }
     }
     loaders.mermaid = async () => {
       loads++
       return {
-        initialize: (config: { theme: string }) => themes.push(config.theme),
+        initialize: (config: { theme: string; maxTextSize: number; maxEdges: number }) => {
+          themes.push(config.theme)
+          configs.push(config)
+        },
         render: (id: string, source: string) => render(id, source),
       } as never
     }
@@ -276,6 +305,26 @@ describe('mermaid', () => {
     await vi.waitFor(() => expect(error.hidden).toBe(false), { timeout: 2000 })
     expect(error.textContent).toContain('Parse error')
     expect(blocks()[0].querySelector('.mermaid-diagram svg')).not.toBeNull()
+  })
+
+  test('a diagram longer than MAX_DIAGRAM_CHARS shows a message and is not drawn', async () => {
+    const source = 'graph TD\n' + '  A --> B\n'.repeat(MAX_DIAGRAM_CHARS / 10)
+    doc = await open('```mermaid\n' + source + '```\n')
+    const error = blocks()[0].querySelector<HTMLElement>('.mermaid-error')!
+    await vi.waitFor(() => expect(error.hidden).toBe(false))
+    expect(error.textContent).toBe(
+      `This diagram is too large to draw (${(source.length - 1).toLocaleString('en-US')} characters). Marky draws diagrams up to ${MAX_DIAGRAM_CHARS.toLocaleString('en-US')} characters.`,
+    )
+    expect(renders).toBe(0)
+    expect(loads).toBe(0)
+    // The source stays in the code block.
+    expect(blocks()[0].querySelector('code')!.textContent).toBe(source.slice(0, -1))
+  })
+
+  test('Mermaid gets the limits for the text size and the edges', async () => {
+    doc = await open('```mermaid\ngraph TD\n  A --> B\n```\n')
+    await vi.waitFor(() => expect(configs).toHaveLength(1))
+    expect(configs[0]).toMatchObject({ maxTextSize: MAX_DIAGRAM_CHARS, maxEdges: MAX_DIAGRAM_EDGES })
   })
 
   test('a change between light and dark mode renders the diagram again', async () => {
