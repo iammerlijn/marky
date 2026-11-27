@@ -7,6 +7,8 @@ mod settings;
 mod menu;
 #[cfg(target_os = "macos")]
 mod terminate;
+#[cfg(target_os = "macos")]
+mod update;
 mod watcher;
 
 use std::path::Path;
@@ -252,6 +254,12 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+                update::check_in_background(app.handle());
+            }
             let path = app.path().app_config_dir()?.join("settings.json");
             let loaded = settings::load(&path);
             app.set_theme(settings::native_theme(loaded.theme));

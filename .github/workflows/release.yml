@@ -1,6 +1,10 @@
 # Builds the macOS DMG and the Linux Flatpak for a version tag (v0.1.0), and attaches both to a
 # draft GitHub release. Publish the release by hand. The app has an ad-hoc signature and is not
 # notarized, so macOS asks the user to allow it on the first open (see llms-install.md).
+# The release also has the files of the updater (src-tauri/src/update.rs): Marky.app.tar.gz, its
+# signature and latest.json. Installed apps see the release when it is published.
+# Secrets: TAURI_SIGNING_PRIVATE_KEY (the private key of the pubkey in tauri.conf.json) and
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD (empty when the key has no password).
 name: Release
 
 on:
@@ -34,11 +38,20 @@ jobs:
       # One DMG for Apple Silicon and Intel Macs.
       - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - run: npm ci
-      - run: npx tauri build --target universal-apple-darwin --bundles dmg
+      # The updater files only here: a local `tauri build` then needs no private key.
+      - run: npx tauri build --target universal-apple-darwin --bundles app,dmg --config '{"bundle":{"createUpdaterArtifacts":true}}'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # In one folder: the release job takes the files from the top of the artifact.
+      - run: |
+          mkdir out
+          cp bundle/dmg/*.dmg bundle/macos/Marky.app.tar.gz bundle/macos/Marky.app.tar.gz.sig out/
+        working-directory: src-tauri/target/universal-apple-darwin/release
       - uses: actions/upload-artifact@v7
         with:
           name: dmg
-          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          path: src-tauri/target/universal-apple-darwin/release/out/*
 
   # The same offline build as packaging/flatpak/build.sh. The bundle gets the GNOME runtime
   # from Flathub when the user installs it.
@@ -59,7 +72,7 @@ jobs:
           artifact-name: flatpak
 
   release:
-    needs: [dmg, flatpak]
+    needs: [version, dmg, flatpak]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -68,13 +81,22 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      # The updater reads this file at releases/latest/download/latest.json. One app for both CPUs.
+      - name: Write latest.json
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          URL: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Marky.app.tar.gz
+        run: |
+          jq -n --arg version "$VERSION" --arg url "$URL" --rawfile signature dist/Marky.app.tar.gz.sig \
+            '{version: $version, pub_date: (now | todate), platforms: {"darwin-aarch64": {$url, $signature}, "darwin-x86_64": {$url, $signature}}}' \
+            > dist/latest.json
       - name: Attach the files to a draft release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         # A new run replaces the files of a draft, but never the files of a published release.
         run: |
-          files=(dist/*.dmg dist/*.flatpak)
+          files=(dist/*.dmg dist/*.flatpak dist/Marky.app.tar.gz dist/Marky.app.tar.gz.sig dist/latest.json)
           if draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft); then
             [ "$draft" = true ] || { echo "Release $GITHUB_REF_NAME is published: its files do not change."; exit 1; }
             gh release upload "$GITHUB_REF_NAME" --clobber "${files[@]}"
