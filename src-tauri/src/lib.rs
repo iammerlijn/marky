@@ -4,16 +4,18 @@ mod settings;
 // Used only on macOS.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod menu;
-mod watcher;
 #[cfg(target_os = "macos")]
 mod terminate;
+mod watcher;
 
 use std::path::Path;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::path::PathBuf;
-use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window};
+use tauri::{
+    AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
+};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use watcher::Watchers;
 
@@ -26,7 +28,10 @@ struct PendingFiles(Mutex<Vec<String>>);
 fn target_window(app: &AppHandle) -> Option<WebviewWindow> {
     let windows = app.webview_windows();
     let focused = windows.values().find(|w| w.is_focused().unwrap_or(false));
-    focused.or_else(|| windows.get("main")).or_else(|| windows.values().next()).cloned()
+    focused
+        .or_else(|| windows.get("main"))
+        .or_else(|| windows.values().next())
+        .cloned()
 }
 
 fn add_pending(app: &AppHandle, paths: Vec<String>) {
@@ -58,7 +63,12 @@ fn toggle_warn_before_quit(app: &AppHandle) {
 // path, so that each window asks about its unsaved changes. The app ends when the last window
 // closes. Cancel in a window keeps the app open.
 fn quit(app: &AppHandle) {
-    let warn = app.state::<AppSettings>().settings.lock().unwrap().warn_before_quit;
+    let warn = app
+        .state::<AppSettings>()
+        .settings
+        .lock()
+        .unwrap()
+        .warn_before_quit;
     if !warn {
         return close_all_windows(app);
     }
@@ -66,7 +76,10 @@ fn quit(app: &AppHandle) {
     app.dialog()
         .message("Quit Marky?")
         .kind(MessageDialogKind::Warning)
-        .buttons(MessageDialogButtons::OkCancelCustom("Quit".into(), "Cancel".into()))
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Quit".into(),
+            "Cancel".into(),
+        ))
         .show(move |confirmed| {
             if confirmed {
                 close_all_windows(&handle);
@@ -93,7 +106,11 @@ fn open_file(path: String) -> Result<files::Opened, String> {
 }
 
 #[tauri::command]
-fn save_file(path: String, text: String, expected_version: String) -> Result<String, files::SaveError> {
+fn save_file(
+    path: String,
+    text: String,
+    expected_version: String,
+) -> Result<String, files::SaveError> {
     files::save(Path::new(&path), &text, &expected_version)
 }
 
@@ -103,7 +120,12 @@ fn create_file(path: String, text: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn watch(app: AppHandle, window: Window, watchers: State<Watchers>, path: String) -> Result<(), String> {
+fn watch(
+    app: AppHandle,
+    window: Window,
+    watchers: State<Watchers>,
+    path: String,
+) -> Result<(), String> {
     watcher::watch(app, &watchers, window.label(), path).map_err(|e| e.to_string())
 }
 
@@ -128,9 +150,7 @@ async fn new_window(app: AppHandle) -> Result<(), String> {
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true)
         .traffic_light_position(tauri::LogicalPosition::new(16.0, 20.0));
-    builder
-        .build()
-        .map_err(|e| e.to_string())?;
+    builder.build().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -169,7 +189,10 @@ pub fn run() {
             // Quit from the Dock uses the same path as Cmd+Q.
             #[cfg(target_os = "macos")]
             terminate::install(app.handle());
-            app.manage(AppSettings { path, settings: Mutex::new(loaded) });
+            app.manage(AppSettings {
+                path,
+                settings: Mutex::new(loaded),
+            });
             Ok(())
         })
         // The quit items are for the app. Each other menu item sends its action to the focused window.
@@ -184,14 +207,27 @@ pub fn run() {
         })
         .manage(Watchers::default())
         .manage(PendingFiles(Mutex::new(initial)))
-        .invoke_handler(tauri::generate_handler![quit_app, open_file, save_file, create_file, watch, unwatch, new_window, take_pending_files, bench_mark])
+        .invoke_handler(tauri::generate_handler![
+            quit_app,
+            open_file,
+            save_file,
+            create_file,
+            watch,
+            unwatch,
+            new_window,
+            take_pending_files,
+            bench_mark
+        ])
         .build(tauri::generate_context!())
         .expect("error while building Marky")
         .run(|_app, _event| {
             // macOS: "Open With" and a drop on the Dock icon.
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Opened { urls } = _event {
-                let paths = urls.iter().filter_map(|url| url.to_file_path().ok()).map(|p| p.to_string_lossy().into_owned());
+                let paths = urls
+                    .iter()
+                    .filter_map(|url| url.to_file_path().ok())
+                    .map(|p| p.to_string_lossy().into_owned());
                 add_pending(_app, paths.collect());
             }
         });

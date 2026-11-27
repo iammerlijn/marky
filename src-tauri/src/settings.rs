@@ -13,13 +13,18 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { warn_before_quit: true }
+        Self {
+            warn_before_quit: true,
+        }
     }
 }
 
 // A missing or invalid file gives the defaults.
 pub fn load(path: &Path) -> Settings {
-    fs::read_to_string(path).ok().and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default()
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
 }
 
 pub fn save(path: &Path, settings: &Settings) -> std::io::Result<()> {
@@ -36,7 +41,12 @@ mod tests {
     #[test]
     fn a_missing_file_gives_the_defaults() {
         let dir = tempfile::tempdir().unwrap();
-        assert_eq!(load(&dir.path().join("settings.json")), Settings { warn_before_quit: true });
+        assert_eq!(
+            load(&dir.path().join("settings.json")),
+            Settings {
+                warn_before_quit: true
+            }
+        );
     }
 
     #[test]
@@ -51,8 +61,19 @@ mod tests {
     fn a_saved_setting_loads_again() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("config/settings.json");
-        save(&path, &Settings { warn_before_quit: false }).unwrap();
-        assert_eq!(load(&path), Settings { warn_before_quit: false });
+        save(
+            &path,
+            &Settings {
+                warn_before_quit: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            load(&path),
+            Settings {
+                warn_before_quit: false
+            }
+        );
     }
 
     #[test]

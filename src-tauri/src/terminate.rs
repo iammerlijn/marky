@@ -14,7 +14,11 @@ static APP: OnceLock<AppHandle> = OnceLock::new();
 // NSApplicationTerminateReply.
 const NS_TERMINATE_CANCEL: usize = 0;
 
-extern "C-unwind" fn should_terminate(_this: &AnyObject, _cmd: Sel, _sender: *mut AnyObject) -> usize {
+extern "C-unwind" fn should_terminate(
+    _this: &AnyObject,
+    _cmd: Sel,
+    _sender: *mut AnyObject,
+) -> usize {
     if let Some(app) = APP.get() {
         crate::quit(app);
     }
@@ -32,10 +36,17 @@ pub fn install(app: &AppHandle) {
             return;
         }
         let cls = ffi::object_getClass(delegate) as *mut AnyClass;
-        let imp = std::mem::transmute::<extern "C-unwind" fn(&AnyObject, Sel, *mut AnyObject) -> usize, Imp>(should_terminate);
-        ffi::class_addMethod(cls, sel!(applicationShouldTerminate:), imp, c"Q@:@".as_ptr());
+        let imp = std::mem::transmute::<
+            extern "C-unwind" fn(&AnyObject, Sel, *mut AnyObject) -> usize,
+            Imp,
+        >(should_terminate);
+        ffi::class_addMethod(
+            cls,
+            sel!(applicationShouldTerminate:),
+            imp,
+            c"Q@:@".as_ptr(),
+        );
         // AppKit can keep what the delegate responds to from the time it was set. Set it again.
         let _: () = msg_send![ns_app, setDelegate: delegate];
     }
 }
-

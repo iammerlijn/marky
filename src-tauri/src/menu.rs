@@ -25,7 +25,14 @@ pub const QUIT: &str = "quit";
 pub const WARN_BEFORE_QUIT: &str = "warn-before-quit";
 
 pub fn build<R: Runtime>(app: &AppHandle<R>, warn_before_quit: bool) -> tauri::Result<Menu<R>> {
-    let warn = CheckMenuItem::with_id(app, WARN_BEFORE_QUIT, "Warn Before Quitting", true, warn_before_quit, None::<&str>)?;
+    let warn = CheckMenuItem::with_id(
+        app,
+        WARN_BEFORE_QUIT,
+        "Warn Before Quitting",
+        true,
+        warn_before_quit,
+        None::<&str>,
+    )?;
     // Not the default quit item: it ends the app at once, without the unsaved-changes check of
     // the windows. See quit() in lib.rs.
     let quit = MenuItem::with_id(app, QUIT, "Quit Marky", true, Some("CmdOrCtrl+Q"))?;
@@ -51,9 +58,19 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, warn_before_quit: bool) -> tauri::R
         go = go.item(&MenuItem::with_id(app, id, label, true, Some(accelerator))?);
     }
     // Undo and Redo stay out: the editor handles Cmd+Z itself.
-    let edit = SubmenuBuilder::new(app, "Edit").cut().copy().paste().select_all().build()?;
-    let window = SubmenuBuilder::new(app, "Window").minimize().fullscreen().build()?;
-    MenuBuilder::new(app).items(&[&marky, &file.build()?, &edit, &go.build()?, &window]).build()
+    let edit = SubmenuBuilder::new(app, "Edit")
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+    let window = SubmenuBuilder::new(app, "Window")
+        .minimize()
+        .fullscreen()
+        .build()?;
+    MenuBuilder::new(app)
+        .items(&[&marky, &file.build()?, &edit, &go.build()?, &window])
+        .build()
 }
 
 #[cfg(test)]
@@ -62,7 +79,10 @@ mod tests {
     // test on another thread (also with --test-threads=1). The macOS app builds the menu on the
     // main thread in `setup`.
     #[test]
-    #[cfg_attr(target_os = "macos", ignore = "muda makes macOS menu items only on the main thread")]
+    #[cfg_attr(
+        target_os = "macos",
+        ignore = "muda makes macOS menu items only on the main thread"
+    )]
     fn the_menu_builds_with_the_saved_quit_setting() {
         let app = tauri::test::mock_app();
         for warn in [true, false] {
@@ -75,7 +95,10 @@ mod tests {
             }
             let marky = menu.items().unwrap()[0].as_submenu().unwrap().clone();
             let item = marky.get(super::WARN_BEFORE_QUIT).unwrap();
-            assert_eq!(item.as_check_menuitem().unwrap().is_checked().unwrap(), warn);
+            assert_eq!(
+                item.as_check_menuitem().unwrap().is_checked().unwrap(),
+                warn
+            );
             assert!(marky.get(super::QUIT).is_some());
         }
     }
