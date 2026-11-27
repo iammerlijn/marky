@@ -21,6 +21,7 @@ import { codeblock } from './plugins/codeblock'
 import { collapsible } from './plugins/collapsible'
 import { frontmatter } from './plugins/frontmatter'
 import { outline } from './plugins/outline'
+import { places } from './plugins/places'
 import { placeholder } from './plugins/placeholder'
 import { slash } from './plugins/slash'
 
@@ -63,6 +64,7 @@ export async function createEditor(root: HTMLElement, text = '', onDocChange = (
     .use(placeholder)
     .use(boxDrawing)
     .use(outline)
+    .use(places)
     .use(docChange(onDocChange))
     .create()
 }
