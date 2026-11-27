@@ -55,6 +55,8 @@ You can also open a file from the command line (`marky notes.md`) or with "Open 
 
 ## Build from source
 
+To only install Marky, download the DMG (macOS) or the `.flatpak` file (Linux) of the [latest release](https://github.com/iammerlijn/marky/releases). [llms-install.md](llms-install.md) has the steps.
+
 Marky is a [Tauri 2](https://tauri.app) app with a Svelte 5 frontend and a [Milkdown](https://milkdown.dev) editor. The tool versions are in `mise.toml` (Node and Rust).
 
 On Linux, install the system libraries of Tauri first:
