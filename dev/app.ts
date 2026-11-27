@@ -26,6 +26,7 @@ const files = new Map<string, { text: string; version: number }>([
 ])
 const backend: Backend = {
   open: async (path) => ({ text: files.get(path)!.text, version: String(files.get(path)!.version) }),
+  version: async (path) => String(files.get(path)!.version),
   save: async (path, text) => {
     const version = files.get(path)!.version + 1
     files.set(path, { text, version })

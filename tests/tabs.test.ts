@@ -14,6 +14,8 @@ class FakeBackend implements Backend {
   files = new Map<string, { text: string; version: number }>()
   saves: string[] = []
   watched = new Set<string>()
+  // Files that open() refuses, as the backend refuses a file above 16 MB.
+  tooLarge = new Set<string>()
   private clock = 0
 
   write(path: string, text: string): string {
@@ -23,7 +25,13 @@ class FakeBackend implements Backend {
   async open(path: string): Promise<Opened> {
     const file = this.files.get(path)
     if (!file) throw `No such file: ${path}`
+    if (this.tooLarge.has(path)) throw 'The file is too large to open (20.0 MB). Marky opens files up to 16 MB.'
     return { text: file.text, version: String(file.version) }
+  }
+  async version(path: string): Promise<string> {
+    const file = this.files.get(path)
+    if (!file) throw `No such file: ${path}`
+    return String(file.version)
   }
   creates: string[] = []
   async create(path: string, text: string): Promise<string> {
@@ -408,6 +416,18 @@ describe('changes on disk', () => {
     expect(backend.files.get('/a.md')!.text).toContain('Mine')
   })
 
+  test('Keep mine works when the file on disk became too large to open', async () => {
+    await tabs.open('/a.md')
+    type('Mine ')
+    const version = backend.write('/a.md', 'Theirs, very large.\n')
+    backend.tooLarge.add('/a.md')
+    await tabs.changed('/a.md', version)
+    await tabs.keepMine(tab('/a.md').id)
+    expect(tab('/a.md').banner).toBeNull()
+    expect(await tabs.save()).toBe(true)
+    expect(backend.files.get('/a.md')!.text).toContain('Mine')
+  })
+
   test('Load from disk: the edits are replaced by the file on disk', async () => {
     await tabs.open('/a.md')
     type('Mine ')
@@ -691,6 +711,35 @@ describe('a large file', () => {
     await tabs.changed('/big.md', version)
     expect(tabs.active?.rawText).toBeNull()
     expect(docText()).toBe('Big' + 'a'.repeat(LARGE_TEXT) + 'Changed.')
+  })
+
+  test('a document that becomes large on disk keeps its undo history for "Show as Document"', async () => {
+    await tabs.open('/a.md')
+    type('Mine ')
+    const version = backend.write('/a.md', large)
+    await tabs.changed('/a.md', version)
+    await tabs.loadFromDisk(tab('/a.md').id)
+    expect(tabs.active?.banner).toBe('large')
+    expect(parsed(large)).toBe(false)
+    tabs.leaveRaw()
+    expect(docText()).toBe('Big' + 'a'.repeat(LARGE_TEXT))
+    // Undo gives back the text from before the reload, with the edit.
+    undo(view.state, view.dispatch)
+    expect(docText()).toContain('Mine')
+  })
+
+  test('a large file that changes again on disk still keeps the undo history', async () => {
+    await tabs.open('/a.md')
+    type('Mine ')
+    await tabs.loadFromDisk(tab('/a.md').id)
+    backend.write('/a.md', large)
+    await tabs.changed('/a.md', backend.write('/a.md', large))
+    await tabs.changed('/a.md', backend.write('/a.md', large + '\nMore.\n'))
+    expect(tabs.active?.rawText).toBe(large + '\nMore.\n')
+    tabs.leaveRaw()
+    undo(view.state, view.dispatch)
+    undo(view.state, view.dispatch)
+    expect(docText()).toContain('Mine')
   })
 
   test('a document that becomes large on disk reloads in raw mode', async () => {

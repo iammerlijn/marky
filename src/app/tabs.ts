@@ -295,10 +295,19 @@ export class Tabs {
     // the text from before the reload, and then the edits from before it. A tab without a
     // block map has no edits in its editor state: it gets a new state.
     const keepHistory = !tab.rawOnly && !rawOnly
+    // A document that becomes large is not parsed: it keeps its editor state with the undo
+    // history, and shows the source. "Show as Document" then puts the new text in that state.
+    // older is not empty while the state has the history of a document.
+    const keepState = rawOnly && large && (!tab.rawOnly || tab.older.length > 0)
     // Keep only some older sources: an undo past them saves with the source of the new file.
-    tab.older = keepHistory ? [tab.source, ...tab.older].slice(0, 10) : []
+    if (!tab.rawOnly) tab.older = [tab.source, ...tab.older].slice(0, 10)
+    if (!keepHistory && !keepState) tab.older = []
     Object.assign(tab, { source, saved, version, rawOnly, large, dirty: false, banner: rawBanner({ rawOnly, large }) })
     if (tab.rawText !== null || rawOnly) tab.rawText = tab.rawStart = saved
+    if (keepState) {
+      this.emit()
+      return
+    }
     if (tab === this.active) {
       const top = this.scroll.get()
       if (keepHistory) this.replaceDoc(source).forEach((tr) => this.view.dispatch(tr(this.view.state)))
@@ -322,7 +331,7 @@ export class Tabs {
   async keepMine(id: number) {
     const tab = this.find(id)
     if (tab.path === null) return
-    tab.version = (await this.backend.open(tab.path)).version
+    tab.version = await this.backend.version(tab.path)
     tab.banner = null
     this.emit()
   }
@@ -354,10 +363,16 @@ export class Tabs {
       // The new text is the new original: a save writes it exactly, and new edits only change
       // their own blocks. Throws a BlockMapError when the text still cannot be mapped.
       tab.source = load(this.md, tab.rawText)
-      const state = this.stateFor(tab.source)
-      tab.older = []
-      if (tab === this.active) this.view.updateState(state)
-      else tab.state = state
+      if (tab.rawOnly && tab.older.length > 0) {
+        // A document that became large on disk: its state still has the undo history.
+        if (tab === this.active) this.replaceDoc(tab.source).forEach((tr) => this.view.dispatch(tr(this.view.state)))
+        else tab.state = this.replaceDoc(tab.source).reduce((s, tr) => s.apply(tr(s)), tab.state)
+      } else {
+        const state = this.stateFor(tab.source)
+        tab.older = []
+        if (tab === this.active) this.view.updateState(state)
+        else tab.state = state
+      }
     }
     tab.rawText = tab.rawStart = null
     if (tab.rawOnly) {

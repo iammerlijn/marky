@@ -243,7 +243,7 @@ describe('mermaid', () => {
   let loads = 0
   const themes: string[] = []
   let render: (id: string, source: string) => Promise<{ svg: string }>
-  let configs: { maxTextSize?: number; maxEdges?: number }[] = []
+  let configs: { maxTextSize?: number; maxEdges?: number; suppressErrorRendering?: boolean }[] = []
   let renders = 0
   const original = loaders.mermaid
 
@@ -260,7 +260,7 @@ describe('mermaid', () => {
     loaders.mermaid = async () => {
       loads++
       return {
-        initialize: (config: { theme: string; maxTextSize: number; maxEdges: number }) => {
+        initialize: (config: { theme: string; maxTextSize: number; maxEdges: number; suppressErrorRendering: boolean }) => {
           themes.push(config.theme)
           configs.push(config)
         },
@@ -321,10 +321,20 @@ describe('mermaid', () => {
     expect(blocks()[0].querySelector('code')!.textContent).toBe(source.slice(0, -1))
   })
 
-  test('Mermaid gets the limits for the text size and the edges', async () => {
+  test('a diagram with too many edges shows the limit of Marky', async () => {
+    render = async () => {
+      throw new Error('Edge limit exceeded. 500 edges found, but the limit is 500.')
+    }
+    doc = await open('```mermaid\ngraph TD\n  A --> B\n```\n')
+    const error = blocks()[0].querySelector<HTMLElement>('.mermaid-error')!
+    await vi.waitFor(() => expect(error.hidden).toBe(false))
+    expect(error.textContent).toBe(`This diagram has too many edges to draw. Marky draws diagrams up to ${MAX_DIAGRAM_EDGES} edges.`)
+  })
+
+  test('Mermaid gets the limits, and does not draw its error picture in the page', async () => {
     doc = await open('```mermaid\ngraph TD\n  A --> B\n```\n')
     await vi.waitFor(() => expect(configs).toHaveLength(1))
-    expect(configs[0]).toMatchObject({ maxTextSize: MAX_DIAGRAM_CHARS, maxEdges: MAX_DIAGRAM_EDGES })
+    expect(configs[0]).toMatchObject({ maxTextSize: MAX_DIAGRAM_CHARS, maxEdges: MAX_DIAGRAM_EDGES, suppressErrorRendering: true })
   })
 
   test('a change between light and dark mode renders the diagram again', async () => {

@@ -313,6 +313,9 @@ class CodeBlockView implements NodeView {
       // Mermaid shows an error for a diagram with more edges, before the layout.
       maxTextSize: MAX_DIAGRAM_CHARS,
       maxEdges: MAX_DIAGRAM_EDGES,
+      // Without this, a draw error (for example too many edges) leaves Mermaid's error picture
+      // in the page body, also after the tab closes. Marky shows the error below the source.
+      suppressErrorRendering: true,
     })
     try {
       const { svg } = await mermaid.render(`mermaid-${++diagrams}`, source)
@@ -320,7 +323,13 @@ class CodeBlockView implements NodeView {
       this.diagram!.innerHTML = svg
       this.error!.hidden = true
     } catch (error) {
-      this.showError(error instanceof Error ? error.message : String(error))
+      const message = error instanceof Error ? error.message : String(error)
+      // Mermaid stops at the limit, so its message says "500 edges found, but the limit is 500".
+      this.showError(
+        message.startsWith('Edge limit exceeded')
+          ? `This diagram has too many edges to draw. Marky draws diagrams up to ${MAX_DIAGRAM_EDGES} edges.`
+          : message,
+      )
     }
   }
 
