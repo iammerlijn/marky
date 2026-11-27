@@ -52,9 +52,22 @@ Marky uses `Cmd` on macOS and `Ctrl` on Linux.
 | `Cmd/Ctrl+Shift+M` | Show or hide the markdown source |
 | `Cmd/Ctrl+,` | Open the settings |
 
+Back, forward and tab changes use other keys on Linux:
+
+| Action | macOS | Linux |
+|---|---|---|
+| Back | `Cmd+[` | `Alt+Left` |
+| Forward | `Cmd+]` | `Alt+Right` |
+| Previous tab | `Cmd+Option+Left`, `Cmd+Shift+[`, `Ctrl+Shift+Tab` | `Ctrl+PageUp`, `Ctrl+Shift+Tab` |
+| Next tab | `Cmd+Option+Right`, `Cmd+Shift+]`, `Ctrl+Tab` | `Ctrl+PageDown`, `Ctrl+Tab` |
+
+Back and forward go to the places where you were before: a tab change, an opened file or a jump with the outline adds a place. Places of closed tabs are skipped.
+
 You can also open a file from the command line (`marky notes.md`) or with "Open With" in your file manager.
 
 ## Build from source
+
+To only install Marky, download the DMG (macOS) or the `.flatpak` file (Linux) of the [latest release](https://github.com/iammerlijn/marky/releases). [llms-install.md](llms-install.md) has the steps.
 
 Marky is a [Tauri 2](https://tauri.app) app with a Svelte 5 frontend and a [Milkdown](https://milkdown.dev) editor. The tool versions are in `mise.toml` (Node and Rust).
 

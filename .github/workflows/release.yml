@@ -1,0 +1,83 @@
+# Builds the macOS DMG and the Linux Flatpak for a version tag (v0.1.0), and attaches both to a
+# draft GitHub release. Publish the release by hand. The app has an ad-hoc signature and is not
+# notarized, so macOS asks the user to allow it on the first open (see llms-install.md).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          filter: blob:none
+      - name: Check that the tag is the app version
+        id: version
+        run: |
+          version=$(jq -r .version src-tauri/tauri.conf.json)
+          [ "$GITHUB_REF_NAME" = "v$version" ] || { echo "Tag $GITHUB_REF_NAME, but tauri.conf.json has $version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  dmg:
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          filter: blob:none
+      - uses: jdx/mise-action@v5
+      # One DMG for Apple Silicon and Intel Macs.
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - run: npm ci
+      - run: npx tauri build --target universal-apple-darwin --bundles dmg
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dmg
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+
+  # The same offline build as packaging/flatpak/build.sh. The bundle gets the GNOME runtime
+  # from Flathub when the user installs it.
+  flatpak:
+    needs: version
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          filter: blob:none
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: packaging/flatpak/io.github.iammerlijn.Marky.yml
+          bundle: Marky_${{ needs.version.outputs.version }}_x86_64.flatpak
+          artifact-name: flatpak
+
+  release:
+    needs: [dmg, flatpak]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Attach the files to a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        # A new run replaces the files of a draft, but never the files of a published release.
+        run: |
+          files=(dist/*.dmg dist/*.flatpak)
+          if draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft); then
+            [ "$draft" = true ] || { echo "Release $GITHUB_REF_NAME is published: its files do not change."; exit 1; }
+            gh release upload "$GITHUB_REF_NAME" --clobber "${files[@]}"
+          else
+            gh release create "$GITHUB_REF_NAME" --draft --generate-notes "${files[@]}"
+          fi

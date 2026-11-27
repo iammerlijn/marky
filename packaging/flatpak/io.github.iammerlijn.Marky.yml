@@ -32,7 +32,8 @@ modules:
       - install -Dm755 src-tauri/target/release/marky /app/bin/marky
       - install -Dm644 packaging/flatpak/io.github.iammerlijn.Marky.desktop /app/share/applications/io.github.iammerlijn.Marky.desktop
       - install -Dm644 packaging/flatpak/io.github.iammerlijn.Marky.metainfo.xml /app/share/metainfo/io.github.iammerlijn.Marky.metainfo.xml
-      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/io.github.iammerlijn.Marky.png
+      # The Linux icon as SVG. Flathub accepts a scalable icon and makes the PNG sizes from it.
+      - install -Dm644 packaging/icon/marky.svg /app/share/icons/hicolor/scalable/apps/io.github.iammerlijn.Marky.svg
     sources:
       - type: dir
         path: ../..

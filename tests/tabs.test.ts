@@ -107,6 +107,23 @@ describe('tabs', () => {
     expect(backend.watched.has('/a.md')).toBe(true)
   })
 
+  test('the previous and the next tab, with a wrap at the ends', async () => {
+    await tabs.open('/a.md')
+    await tabs.open('/b.md')
+    tabs.newTab()
+    tabs.activateNext(1)
+    expect(tabs.active?.path).toBe('/a.md')
+    tabs.activateNext(-1)
+    expect(tabs.active?.path).toBeNull()
+    tabs.activateNext(-1)
+    expect(tabs.active?.path).toBe('/b.md')
+  })
+
+  test('the next tab with no tabs does nothing', () => {
+    tabs.activateNext(1)
+    expect(tabs.active).toBeNull()
+  })
+
   test('open a file that is already open: Marky selects its tab', async () => {
     await tabs.open('/a.md')
     await tabs.open('/b.md')

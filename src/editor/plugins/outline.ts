@@ -34,6 +34,10 @@ export function headingsOf(doc: Node): Heading[] {
   return headings
 }
 
+// After a jump to a heading, the editor element sends this event with the place before the jump
+// ({ pos, scroll }), for back and forward (src/app/history.ts).
+export const JUMP_EVENT = 'marky-jump'
+
 // The bottom of the tab bar and the banner, which stick at the top of the window.
 const viewTop = () => document.getElementById('chrome')?.getBoundingClientRect().bottom ?? 0
 // The list is made again this time after the last edit.
@@ -205,11 +209,13 @@ class OutlineView {
     const heading = this.headings[index]
     const { view } = this
     if (view.state.doc.nodeAt(heading.pos)?.type.name !== 'heading') return
+    const from = { pos: view.state.selection.head, scroll: window.scrollY }
     openAround(view, heading.pos)
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, heading.pos + 1)))
     view.focus()
     const el = view.nodeDOM(heading.pos) as HTMLElement
     window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - viewTop() - 16)
+    view.dom.dispatchEvent(new CustomEvent(JUMP_EVENT, { bubbles: true, detail: from }))
   }
 }
 

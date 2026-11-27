@@ -167,6 +167,13 @@ export class Tabs {
     this.emit()
   }
 
+  // The previous (-1) or next (1) tab. After the last tab comes the first tab.
+  activateNext(step: 1 | -1) {
+    if (!this.active) return
+    const index = this.tabs.indexOf(this.active) + step
+    this.activate(this.tabs[(index + this.tabs.length) % this.tabs.length].id)
+  }
+
   // Compares the active document with the file. Call it a short time after an edit.
   refreshDirty() {
     const tab = this.active
