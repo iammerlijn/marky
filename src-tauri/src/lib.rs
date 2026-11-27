@@ -23,6 +23,7 @@ use tauri::{
     Window,
 };
 use tauri_plugin_dialog::{DialogExt, FilePath, MessageDialogButtons, MessageDialogKind};
+use tauri_plugin_opener::OpenerExt;
 use watcher::Watchers;
 
 // Files to open: from the command line, from a second `marky` command and from "Open With".
@@ -97,6 +98,22 @@ fn set_settings(
 #[tauri::command]
 fn about(app: AppHandle) -> about::About {
     about::about(app.package_info())
+}
+
+// A click on a link in the document (src/editor/plugins/links.ts). The page is not trusted, so
+// only web and mail links open: a link must not start another app.
+fn openable_link(url: &str) -> Option<tauri::Url> {
+    let url = tauri::Url::parse(url).ok()?;
+    matches!(url.scheme(), "http" | "https" | "mailto").then_some(url)
+}
+
+#[tauri::command]
+fn open_link(app: AppHandle, url: String) -> Result<(), String> {
+    let link =
+        openable_link(&url).ok_or_else(|| format!("Marky does not open this link: {url}"))?;
+    app.opener()
+        .open_url(link.as_str(), None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 // One settings window: a second Cmd/Ctrl+, selects it.
@@ -344,6 +361,7 @@ pub fn run() {
             add_pending(app, cli::files(args, Path::new(&cwd)));
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             #[cfg(target_os = "macos")]
             {
@@ -430,6 +448,7 @@ pub fn run() {
             get_settings,
             set_settings,
             about,
+            open_link,
             open_settings
         ])
         .build(tauri::generate_context!())
@@ -522,6 +541,17 @@ mod tests {
         for (cmd, args) in &calls {
             assert!(invoke(&other, cmd, args.clone()).is_err(), "{cmd}");
         }
+    }
+
+    #[test]
+    fn only_web_and_mail_links_open() {
+        assert!(openable_link("https://example.com/a?b=1").is_some());
+        assert!(openable_link("http://example.com").is_some());
+        assert!(openable_link("mailto:someone@example.com").is_some());
+        assert!(openable_link("file:///etc/passwd").is_none());
+        assert!(openable_link("javascript:alert(1)").is_none());
+        assert!(openable_link("x-apple.systempreferences:com.apple.preference").is_none());
+        assert!(openable_link("notes.md").is_none());
     }
 
     #[test]

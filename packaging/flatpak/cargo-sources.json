@@ -2368,6 +2368,32 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/is-docker/is-docker-0.2.0.crate",
+        "sha256": "928bae27f42bc99b60d9ac7334e3a21d10ad8f1835a4e12ec3ec0464765ed1b3",
+        "dest": "cargo/vendor/is-docker-0.2.0"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"928bae27f42bc99b60d9ac7334e3a21d10ad8f1835a4e12ec3ec0464765ed1b3\", \"files\": {}}",
+        "dest": "cargo/vendor/is-docker-0.2.0",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/is-wsl/is-wsl-0.4.0.crate",
+        "sha256": "173609498df190136aa7dea1a91db051746d339e18476eed5ca40521f02d7aa5",
+        "dest": "cargo/vendor/is-wsl-0.4.0"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"173609498df190136aa7dea1a91db051746d339e18476eed5ca40521f02d7aa5\", \"files\": {}}",
+        "dest": "cargo/vendor/is-wsl-0.4.0",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/itoa/itoa-1.0.19.crate",
         "sha256": "3bd1574e617a9a6c1f8f8181bd7e841e1f20e4277607ef28945765188d6284d4",
         "dest": "cargo/vendor/itoa-1.0.19"
@@ -3364,6 +3390,19 @@
         "type": "inline",
         "contents": "{\"package\": \"9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50\", \"files\": {}}",
         "dest": "cargo/vendor/once_cell-1.21.4",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/open/open-5.4.5.crate",
+        "sha256": "8d8c8b8e725ad26404d6896eb2f064294a0a7b4f1d9120210d85544684c4ca95",
+        "dest": "cargo/vendor/open-5.4.5"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"8d8c8b8e725ad26404d6896eb2f064294a0a7b4f1d9120210d85544684c4ca95\", \"files\": {}}",
+        "dest": "cargo/vendor/open-5.4.5",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -5067,6 +5106,19 @@
         "type": "inline",
         "contents": "{\"package\": \"5d58eb1d4984e535f47a642ffec09a2da6f5c18a12b5902d12126cb7626d628b\", \"files\": {}}",
         "dest": "cargo/vendor/tauri-plugin-fs-2.7.1",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/tauri-plugin-opener/tauri-plugin-opener-2.7.3.crate",
+        "sha256": "54592c6718b42ab198bf11bda6a428a3553ca2f2f8e506df56f6a063ec328331",
+        "dest": "cargo/vendor/tauri-plugin-opener-2.7.3"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"54592c6718b42ab198bf11bda6a428a3553ca2f2f8e506df56f6a063ec328331\", \"files\": {}}",
+        "dest": "cargo/vendor/tauri-plugin-opener-2.7.3",
         "dest-filename": ".cargo-checksum.json"
     },
     {
