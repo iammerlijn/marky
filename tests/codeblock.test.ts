@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 // Code blocks and Mermaid.
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state'
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from 'vitest'
+import { applyTheme } from '../src/app/theme'
 import { loaders, WORKER_IDLE_MS, workerTokenizer } from '../src/editor/plugins/codeblock'
 import { open, type OpenDoc } from './helpers'
 
@@ -31,6 +32,22 @@ describe('code blocks', () => {
     view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
     expect(view.state.doc.firstChild!.textContent).toBe('  x')
     expect(doc.save().text).toBe('```js\n  x\n```\n')
+  })
+
+  test('only the block with the anchor of the selection gets is-editing', async () => {
+    doc = await open('Above.\n\n```mermaid\ngraph TD\n```\n\nBelow.\n')
+    const { view } = doc
+    const block = blocks()[0]
+    const inside = 10
+    const below = view.state.doc.content.size - 2
+    // A drag from below into the block: the source stays hidden, so the text does not move.
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, below, inside)))
+    expect(block.classList.contains('is-editing')).toBe(false)
+    // The cursor in the block, and a selection from the block to below it.
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, inside)))
+    expect(block.classList.contains('is-editing')).toBe(true)
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, inside, below)))
+    expect(block.classList.contains('is-editing')).toBe(true)
   })
 
   test('a known language gets highlighted, without a change to the document', async () => {
@@ -276,5 +293,16 @@ describe('mermaid', () => {
     media.matches = true
     media.listeners.forEach((listener) => listener())
     await vi.waitFor(() => expect(themes).toEqual(['neutral', 'dark']))
+  })
+
+  test('a change of the chosen theme renders the diagram again', async () => {
+    // The chosen theme is on <html>: remove it after the test.
+    onTestFinished(() => applyTheme('system'))
+    doc = await open('```mermaid\ngraph TD\n  A --> B\n```\n')
+    await vi.waitFor(() => expect(themes).toEqual(['neutral']))
+    applyTheme('dark')
+    await vi.waitFor(() => expect(themes).toEqual(['neutral', 'dark']))
+    applyTheme('light')
+    await vi.waitFor(() => expect(themes).toEqual(['neutral', 'dark', 'neutral']))
   })
 })

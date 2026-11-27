@@ -6,6 +6,9 @@
   --border: #e6e7ea;
   --code-bg: #f4f5f7;
   --accent: #5e6ad2;
+  --selection: color-mix(in srgb, var(--accent) 22%, transparent);
+  /* Lighter than a text selection: the outline shows the selected cells. */
+  --cell-selection: color-mix(in srgb, var(--accent) 10%, transparent);
 
   --font-text: Inter, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
@@ -18,8 +21,10 @@
   --radius: 6px;
 }
 
+/* Dark: from the system, unless the settings force Light (src/app/theme.ts). Keep the two
+   blocks the same. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #17181b;
     --text: #d6d7da;
     --text-muted: #8a8f98;
@@ -27,4 +32,12 @@
     --code-bg: #212226;
     --accent: #7c85e0;
   }
+}
+:root[data-theme='dark'] {
+  --bg: #17181b;
+  --text: #d6d7da;
+  --text-muted: #8a8f98;
+  --border: #2b2d31;
+  --code-bg: #212226;
+  --accent: #7c85e0;
 }

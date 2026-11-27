@@ -7,6 +7,7 @@ import type { Node } from '@milkdown/kit/prose/model'
 import { Plugin, PluginKey, TextSelection, type Transaction } from '@milkdown/kit/prose/state'
 import { Decoration, DecorationSet, type EditorView, type NodeView } from '@milkdown/kit/prose/view'
 import { $prose, $view } from '@milkdown/kit/utils'
+import { isDark, onThemeChange } from '../../app/theme'
 import { changedNodes } from './changed'
 import { createTokenizer, type Span, type Tokenize } from './highlighter'
 import { languageModule } from './languages'
@@ -156,7 +157,10 @@ const highlight = $prose(() => {
   })
 })
 
-// The code block that contains the cursor gets the class `is-editing`.
+// The code block that contains the anchor of the selection gets the class `is-editing`: a
+// Mermaid block then shows its source. The anchor does not move during a drag or Shift+Arrow,
+// so a selection that goes across a block does not show its source. That would move the text
+// below the pointer during the drag.
 const editingKey = new PluginKey('marky-code-editing')
 const editing = $prose(
   () =>
@@ -164,11 +168,11 @@ const editing = $prose(
       key: editingKey,
       props: {
         decorations(state) {
-          const { $from } = state.selection
-          for (let depth = $from.depth; depth > 0; depth--) {
-            const node = $from.node(depth)
+          const { $anchor } = state.selection
+          for (let depth = $anchor.depth; depth > 0; depth--) {
+            const node = $anchor.node(depth)
             if (node.type.name === 'code_block') {
-              const pos = $from.before(depth)
+              const pos = $anchor.before(depth)
               return DecorationSet.create(state.doc, [Decoration.node(pos, pos + node.nodeSize, { class: 'is-editing' })])
             }
           }
@@ -189,9 +193,9 @@ class CodeBlockView implements NodeView {
   private timer: ReturnType<typeof setTimeout> | undefined
   private visible = false
   private rendered = ''
-  private colorScheme: MediaQueryList | null = null
-  // Render again in the other theme when the system changes between light and dark.
-  private onColorScheme = () => {
+  private stopThemeChange: (() => void) | null = null
+  // Render again in the other theme when the system or the chosen theme changes.
+  private onThemeChange = () => {
     if (!this.visible) return
     this.rendered = ''
     this.schedule(0)
@@ -242,8 +246,7 @@ class CodeBlockView implements NodeView {
       this.error.contentEditable = 'false'
       this.error.hidden = true
       this.dom.append(this.diagram, this.error)
-      this.colorScheme = matchMedia('(prefers-color-scheme: dark)')
-      this.colorScheme.addEventListener('change', this.onColorScheme)
+      this.stopThemeChange = onThemeChange(this.onThemeChange)
       // Load Mermaid only when the diagram is visible.
       if (typeof IntersectionObserver !== 'undefined') {
         const observer = new IntersectionObserver((entries) => {
@@ -269,8 +272,10 @@ class CodeBlockView implements NodeView {
     // A change of the language to or from Mermaid needs a new view.
     if ((String(node.attrs.language).toLowerCase() === 'mermaid') !== this.isMermaid) return false
     this.node = node
-    this.dom.dataset.language = node.attrs.language || ''
-    this.label.textContent = node.attrs.language || 'Text'
+    // Change the DOM only for a new language: a new decoration also calls update().
+    const language = node.attrs.language || ''
+    if (this.dom.dataset.language !== language) this.dom.dataset.language = language
+    if (this.label.textContent !== (language || 'Text')) this.label.textContent = language || 'Text'
     if (this.diagram && this.visible && node.textContent !== this.rendered) this.schedule(300)
     return true
   }
@@ -284,7 +289,7 @@ class CodeBlockView implements NodeView {
     const source = this.node.textContent
     this.rendered = source
     const mermaid = await loaders.mermaid()
-    const dark = this.colorScheme!.matches
+    const dark = isDark()
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: 'strict',
@@ -314,7 +319,7 @@ class CodeBlockView implements NodeView {
 
   destroy() {
     clearTimeout(this.timer)
-    this.colorScheme?.removeEventListener('change', this.onColorScheme)
+    this.stopThemeChange?.()
   }
 }
 

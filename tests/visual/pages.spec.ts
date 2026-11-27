@@ -39,6 +39,88 @@ test('outline: keyboard', async ({ page }) => {
   expect(await page.evaluate(() => window.getSelection()?.anchorNode?.parentElement?.closest('h1, h2, h3, h4, h5, h6')?.textContent)).toBe(last)
 })
 
+// Text selection across tables and code blocks (issue #45).
+test.describe('selection', () => {
+  const text = (page: Page) => page.evaluate(() => String(window.getSelection()))
+  const block = (page: Page, selector: string, name: string) => page.locator(`.ProseMirror ${selector}`, { hasText: name }).first()
+  async function point(page: Page, selector: string, name: string) {
+    const box = (await block(page, selector, name).boundingBox())!
+    return { x: box.x + 30, y: box.y + box.height / 2 }
+  }
+  // Clicks with a pause, so that the next click is not a double click.
+  async function click(page: Page, at: { x: number; y: number }) {
+    await page.mouse.click(at.x, at.y)
+    await page.waitForTimeout(600)
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/dev/preview.html')
+    await ready(page)
+  })
+
+  test('a drag across a table selects the whole table, and does not jump back', async ({ page }) => {
+    const from = await point(page, 'h2', 'Status')
+    const to = await point(page, 'h2', 'Tasks')
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    // At each step the selection gets longer: it does not jump back to the start block.
+    let length = 0
+    for (let i = 1; i <= 20; i++) {
+      await page.mouse.move(from.x, from.y + ((to.y - from.y) * i) / 20)
+      const now = (await text(page)).length
+      expect(now).toBeGreaterThanOrEqual(length)
+      length = now
+    }
+    await page.mouse.up()
+    const selected = await text(page)
+    for (const cell of ['Area', 'Import flow', 'Joris', 'Nov 28']) expect(selected).toContain(cell)
+    expect(selected).toMatch(/^\S+\s+Area/)
+  })
+
+  test('Shift+Down and Shift+click across a table select the whole table', async ({ page }) => {
+    await click(page, await point(page, 'h2', 'Status'))
+    for (let i = 0; i < 40 && !(await text(page)).includes('Ta'); i++) await page.keyboard.press('Shift+ArrowDown')
+    expect(await text(page)).toMatch(/^\S+\s+Area[\s\S]*Nov 28\s+Ta/)
+
+    await click(page, await point(page, 'h2', 'Status'))
+    await page.keyboard.down('Shift')
+    await click(page, await point(page, 'h2', 'Tasks'))
+    await page.keyboard.up('Shift')
+    expect(await text(page)).toMatch(/^\S+\s+Area[\s\S]*Nov 28\s+T\S*$/)
+  })
+
+  test('a drag in a table still selects cells', async ({ page }) => {
+    const from = await point(page, 'td', 'Anna')
+    const to = await point(page, 'td', 'Done')
+    await page.mouse.move(from.x - 25, from.y)
+    await page.mouse.down()
+    await page.mouse.move(to.x, to.y, { steps: 10 })
+    await page.mouse.up()
+    await expect(page.locator('.ProseMirror td.selectedCell')).toHaveCount(6)
+  })
+
+  test('a drag up across code blocks keeps the Mermaid source hidden and selects the code', async ({ page }) => {
+    await block(page, 'h2', 'Technical notes').evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 20))
+    const mermaid = page.locator('.code-block[data-language="mermaid"]')
+    const height = (await mermaid.boundingBox())!.height
+    const from = await point(page, 'h2', 'Risks')
+    const to = await point(page, 'h2', 'Technical notes')
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    // The source of the diagram does not show during the drag, so the text below the pointer
+    // does not move.
+    for (let i = 1; i <= 20; i++) {
+      await page.mouse.move(from.x, from.y + ((to.y - from.y) * i) / 20)
+      await expect(mermaid).not.toHaveClass(/is-editing/)
+      expect((await mermaid.boundingBox())!.height).toBe(height)
+    }
+    await page.mouse.up()
+    const selected = await text(page)
+    for (const part of ['notes', 'for await (const chunk', 'The 64 KB chunk']) expect(selected).toContain(part)
+    expect(selected).toMatch(/\sR\S*$/)
+  })
+})
+
 test('app: markdown source button', async ({ page }) => {
   await page.goto('/dev/app.html')
   await page.waitForSelector('body[data-ready]')
@@ -120,6 +202,13 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expect(page).toHaveScreenshot(`outline-closed-${colorScheme}.png`)
     })
 
+    test('outline: the last heading is current at the end of the document', async ({ page }) => {
+      await page.goto('/dev/preview.html?file=outline.md')
+      await ready(page)
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+      await expect(page.locator('.outline-item').last()).toHaveAttribute('aria-current', 'location')
+    })
+
     test('outline: open', async ({ page }) => {
       await page.goto('/dev/preview.html?file=outline.md')
       await ready(page)
@@ -132,6 +221,22 @@ for (const colorScheme of ['light', 'dark'] as const) {
       // The panel closes after the mouse leaves it.
       await page.mouse.move(600, 400)
       await expect(page.locator('.outline-panel')).toBeHidden()
+    })
+
+    // One color for the whole selection: no second layer on list items, no bar above the table,
+    // and filled cells in place of a stripe for the text of each cell.
+    test('selection: list and table', async ({ page }) => {
+      await page.goto('/dev/preview.html')
+      await ready(page)
+      const from = (await page.locator('.ProseMirror li', { hasText: 'Reduce' }).boundingBox())!
+      const to = (await page.locator('.ProseMirror td', { hasText: 'Joris' }).boundingBox())!
+      await page.mouse.move(from.x + 40, from.y + from.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(to.x + 20, to.y + to.height / 2, { steps: 20 })
+      await page.mouse.up()
+      await expect(page.locator('.ProseMirror .selectedCell')).toHaveCount(9)
+      const clip = { x: from.x - 40, y: from.y - 40, width: 760, height: to.y + to.height + 80 - from.y }
+      await expect(page).toHaveScreenshot(`selection-${colorScheme}.png`, { clip })
     })
 
     test('slash menu', async ({ page }) => {
@@ -147,3 +252,86 @@ for (const colorScheme of ['light', 'dark'] as const) {
     })
   })
 }
+
+// A theme from the settings overrides the system theme. The pages look the same as with that
+// system theme, so the tests use the same images.
+for (const [system, theme] of [['dark', 'light'], ['light', 'dark']] as const) {
+  test.describe(`${theme} theme on a ${system} system`, () => {
+    test.use({ colorScheme: system })
+
+    test('document: sample', async ({ page }) => {
+      await page.goto(`/dev/preview.html?theme=${theme}`)
+      await ready(page)
+      await expect(page).toHaveScreenshot(`sample-${theme}.png`, { fullPage: true })
+    })
+
+    test('app: tabs', async ({ page }) => {
+      await page.goto(`/dev/app.html?state=tabs&theme=${theme}`)
+      await page.waitForSelector('body[data-ready]')
+      await page.evaluate(() => document.fonts.ready)
+      await expect(page).toHaveScreenshot(`app-tabs-${theme}.png`)
+    })
+
+    // A change of the theme also draws the Mermaid diagrams again.
+    test('document: sample, theme changed after the diagrams', async ({ page }) => {
+      await page.goto('/dev/preview.html')
+      await ready(page)
+      const diagram = page.locator('.mermaid-diagram svg')
+      await diagram.evaluate((svg) => svg.setAttribute('data-old', ''))
+      await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme)
+      await expect(page.locator('.mermaid-diagram svg:not([data-old])')).toBeAttached()
+      await page.evaluate(() => window.scrollTo(0, 0))
+      await expect(page).toHaveScreenshot(`sample-${theme}.png`, { fullPage: true })
+    })
+  })
+}
+
+// The settings window: macOS has "Warn Before Quitting", Linux has the About section. The
+// viewport is the size of the window (show_settings in src-tauri/src/lib.rs). The open theme menu
+// must fit in the window.
+for (const [os, height] of [['mac', 192], ['linux', 226]] as const) {
+  for (const colorScheme of ['light', 'dark'] as const) {
+    test(`settings: ${os}, ${colorScheme}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme })
+      await page.setViewportSize({ width: 480, height })
+      await page.goto(`/dev/settings.html?os=${os}`)
+      await page.waitForSelector('body[data-ready]')
+      await expect(page.getByRole('button', { name: 'Appearance System' })).toBeVisible()
+      expect(await page.evaluate(() => document.body.offsetHeight)).toBe(height)
+      await expect(page).toHaveScreenshot(`settings-${os}-${colorScheme}.png`)
+      await page.getByRole('button', { name: 'Appearance System' }).click()
+      const menu = await page.getByRole('listbox').boundingBox()
+      expect(menu!.y + menu!.height).toBeLessThanOrEqual(height)
+      await expect(page).toHaveScreenshot(`settings-${os}-${colorScheme}-menu.png`)
+    })
+  }
+}
+
+test('settings: a choice in the theme menu changes the theme at once', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto('/dev/settings.html')
+  await page.waitForSelector('body[data-ready]')
+  await page.getByRole('button', { name: 'Appearance System' }).click()
+  await page.getByRole('option', { name: 'Dark' }).click()
+  await expect(page.getByRole('listbox')).toBeHidden()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await expect(page.getByRole('button', { name: 'Appearance Dark' })).toBeFocused()
+
+  // The keyboard: open, move up, choose.
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByRole('option', { name: 'Dark' })).toHaveAttribute('aria-selected', 'true')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme')
+
+  // Escape and a click outside close the menu without a change.
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('listbox')).toBeHidden()
+  await page.keyboard.press(' ')
+  await page.mouse.click(10, 180)
+  await expect(page.getByRole('listbox')).toBeHidden()
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme')
+})

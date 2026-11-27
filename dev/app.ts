@@ -1,5 +1,5 @@
 // Dev preview of the app chrome (tabs, bars) without Tauri: files are in memory.
-// ?state=tabs (default) | banner | empty
+// ?state=tabs (default) | banner | empty. ?theme=light | dark forces a theme (src/app/theme.ts).
 import '@fontsource/inter/400.css'
 import '@fontsource/inter/600.css'
 import '@fontsource/jetbrains-mono/400.css'
@@ -14,6 +14,7 @@ import type { Backend } from '../src/app/backend'
 import { modLabel } from '../src/app/keys'
 import { RawEditor } from '../src/app/raw'
 import { Tabs } from '../src/app/tabs'
+import { applyTheme, type Theme } from '../src/app/theme'
 import { createEditor, markdownOf } from '../src/editor/setup'
 import sample from './sample.md?raw'
 
@@ -38,6 +39,7 @@ const backend: Backend = {
   unwatch: async () => {},
 }
 
+applyTheme((new URLSearchParams(location.search).get('theme') ?? 'system') as Theme)
 const editorRoot = document.getElementById('editor')!
 const rawRoot = document.getElementById('raw')!
 const editor = await createEditor(editorRoot)
