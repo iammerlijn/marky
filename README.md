@@ -115,6 +115,7 @@ The fidelity tests open and save each file in `tests/corpus/` and check that no 
 ## Documentation
 
 - [Style sheet](docs/style.md): the design rules of the UI
+- [Known dependency advisories](docs/security-advisories.md): advisories that remain, and why they do not affect Marky
 
 ## License
 

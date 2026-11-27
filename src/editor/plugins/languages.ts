@@ -1,67 +1,69 @@
 // The languages that code blocks highlight. Not all ~240 languages of Shiki: they add about
-// 15 MB to the app. Each import is a chunk that loads only when a code block uses the language.
-// Other languages show as plain code.
-import type { LanguageInput } from 'shiki/core'
+// 15 MB to the app. Each grammar (grammars.ts) is a chunk that loads only when a code block uses
+// the language. Other languages show as plain code. This file has no imports: the page uses it,
+// and the grammars must be only in the worker build.
 
-const languages = {
-  astro: () => import('shiki/langs/astro.mjs'),
-  c: () => import('shiki/langs/c.mjs'),
-  clojure: () => import('shiki/langs/clojure.mjs'),
-  cpp: () => import('shiki/langs/cpp.mjs'),
-  csharp: () => import('shiki/langs/csharp.mjs'),
-  css: () => import('shiki/langs/css.mjs'),
-  csv: () => import('shiki/langs/csv.mjs'),
-  dart: () => import('shiki/langs/dart.mjs'),
-  diff: () => import('shiki/langs/diff.mjs'),
-  dockerfile: () => import('shiki/langs/dockerfile.mjs'),
-  dotenv: () => import('shiki/langs/dotenv.mjs'),
-  elixir: () => import('shiki/langs/elixir.mjs'),
-  erlang: () => import('shiki/langs/erlang.mjs'),
-  fish: () => import('shiki/langs/fish.mjs'),
-  go: () => import('shiki/langs/go.mjs'),
-  graphql: () => import('shiki/langs/graphql.mjs'),
-  groovy: () => import('shiki/langs/groovy.mjs'),
-  haskell: () => import('shiki/langs/haskell.mjs'),
-  hcl: () => import('shiki/langs/hcl.mjs'),
-  html: () => import('shiki/langs/html.mjs'),
-  ini: () => import('shiki/langs/ini.mjs'),
-  java: () => import('shiki/langs/java.mjs'),
-  javascript: () => import('shiki/langs/javascript.mjs'),
-  json: () => import('shiki/langs/json.mjs'),
-  jsonc: () => import('shiki/langs/jsonc.mjs'),
-  jsx: () => import('shiki/langs/jsx.mjs'),
-  kotlin: () => import('shiki/langs/kotlin.mjs'),
-  latex: () => import('shiki/langs/latex.mjs'),
-  lua: () => import('shiki/langs/lua.mjs'),
-  make: () => import('shiki/langs/make.mjs'),
-  markdown: () => import('shiki/langs/markdown.mjs'),
-  nginx: () => import('shiki/langs/nginx.mjs'),
-  nix: () => import('shiki/langs/nix.mjs'),
-  php: () => import('shiki/langs/php.mjs'),
-  powershell: () => import('shiki/langs/powershell.mjs'),
-  proto: () => import('shiki/langs/proto.mjs'),
-  python: () => import('shiki/langs/python.mjs'),
-  r: () => import('shiki/langs/r.mjs'),
-  ruby: () => import('shiki/langs/ruby.mjs'),
-  rust: () => import('shiki/langs/rust.mjs'),
-  scala: () => import('shiki/langs/scala.mjs'),
-  scss: () => import('shiki/langs/scss.mjs'),
-  shellscript: () => import('shiki/langs/shellscript.mjs'),
-  sql: () => import('shiki/langs/sql.mjs'),
-  svelte: () => import('shiki/langs/svelte.mjs'),
-  swift: () => import('shiki/langs/swift.mjs'),
-  terraform: () => import('shiki/langs/terraform.mjs'),
-  toml: () => import('shiki/langs/toml.mjs'),
-  tsx: () => import('shiki/langs/tsx.mjs'),
-  typescript: () => import('shiki/langs/typescript.mjs'),
-  vim: () => import('shiki/langs/vim.mjs'),
-  vue: () => import('shiki/langs/vue.mjs'),
-  xml: () => import('shiki/langs/xml.mjs'),
-  yaml: () => import('shiki/langs/yaml.mjs'),
-  zig: () => import('shiki/langs/zig.mjs'),
-}
+const names = [
+  'astro',
+  'c',
+  'clojure',
+  'cpp',
+  'csharp',
+  'css',
+  'csv',
+  'dart',
+  'diff',
+  'dockerfile',
+  'dotenv',
+  'elixir',
+  'erlang',
+  'fish',
+  'go',
+  'graphql',
+  'groovy',
+  'haskell',
+  'hcl',
+  'html',
+  'ini',
+  'java',
+  'javascript',
+  'json',
+  'jsonc',
+  'jsx',
+  'kotlin',
+  'latex',
+  'lua',
+  'make',
+  'markdown',
+  'nginx',
+  'nix',
+  'php',
+  'powershell',
+  'proto',
+  'python',
+  'r',
+  'ruby',
+  'rust',
+  'scala',
+  'scss',
+  'shellscript',
+  'sql',
+  'svelte',
+  'swift',
+  'terraform',
+  'toml',
+  'tsx',
+  'typescript',
+  'vim',
+  'vue',
+  'xml',
+  'yaml',
+  'zig',
+] as const
 
-type Name = keyof typeof languages
+export type Name = (typeof names)[number]
+
+const known = new Set<string>(names)
 
 // The usual short names in markdown files.
 const aliases: Record<string, Name> = {
@@ -99,8 +101,8 @@ const aliases: Record<string, Name> = {
   svg: 'xml',
 }
 
-// A getter that Shiki loads, or null for a language that Marky does not include.
-export function languageModule(name: string): LanguageInput | null {
-  const key = (aliases[name] ?? name) as Name
-  return Object.hasOwn(languages, key) ? languages[key] : null
+// The Shiki name of the language, or null for a language that Marky does not include.
+export function languageName(name: string): Name | null {
+  const key = aliases[name] ?? name
+  return known.has(key) ? (key as Name) : null
 }

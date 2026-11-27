@@ -29,6 +29,21 @@ export const tauriBackend: Backend = {
   unwatch: (path) => invoke('unwatch', { path }),
 }
 
+// The open and save dialogs are in the backend: the path that the user chooses is the only path
+// that the window gets permission for (src-tauri/src/grants.rs). Null when the user cancels.
+// `path` is a file for the dialog to show.
+export const openFileDialog = (path?: string) => invoke<string | null>('open_dialog', { path })
+export const saveFileDialog = () => invoke<string | null>('save_dialog')
+
+// The error of a file command for a path that the window has no permission for (grants.rs).
+export const isNotGranted = (error: unknown) =>
+  String(error instanceof Error ? error.message : error).startsWith('Marky has no permission for ')
+
+// Markdown files that the user dropped on the window. The backend gives the window permission
+// for them first.
+export const onDroppedFiles = (handler: (paths: string[]) => void) =>
+  listen<string[]>('dropped-files', ({ payload }) => handler(payload))
+
 // `version` is null when the file was deleted or renamed.
 export function onFileChanged(handler: (path: string, version: string | null) => void) {
   return listen<{ path: string; version: string | null }>('file-changed', ({ payload }) => handler(payload.path, payload.version))

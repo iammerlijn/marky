@@ -9,8 +9,8 @@ import { Decoration, DecorationSet, type EditorView, type NodeView } from '@milk
 import { $prose, $view } from '@milkdown/kit/utils'
 import { isDark, onThemeChange } from '../../app/theme'
 import { changedNodes } from './changed'
-import { createTokenizer, type Span, type Tokenize } from './highlighter'
-import { languageModule } from './languages'
+import type { Span, Tokenize } from './highlighter'
+import { languageName } from './languages'
 
 // The worker stops when no code block needed it for this time. Then WebKit gives its memory
 // back: about 45 MB after one TypeScript block (issue 2).
@@ -58,10 +58,11 @@ export function workerTokenizer(): Tokenize {
 
 let tokenizer: Tokenize | null = null
 
-// Replaced in tests, to count the loads. Tests run in happy-dom, which has no Worker.
+// Replaced in tests, to count the loads. Tests run in happy-dom, which has no Worker: the test
+// setup (tests/setup.ts) puts the tokenizer in the test process. The app does not include it, so
+// that each Shiki grammar is only in the worker build (issue 56).
 export const loaders = {
-  tokenize: ((code, language) =>
-    (tokenizer ??= typeof Worker === 'undefined' ? createTokenizer() : workerTokenizer())(code, language)) as Tokenize,
+  tokenize: ((code, language) => (tokenizer ??= workerTokenizer())(code, language)) as Tokenize,
   mermaid: async () => (await import('mermaid')).default,
 }
 
@@ -88,7 +89,7 @@ function refresh(view: EditorView) {
 const highlighted = (node: Node) => {
   const language = String(node.attrs.language ?? '').toLowerCase()
   if (node.content.size > MAX_HIGHLIGHT_CHARS) return null
-  return language !== 'mermaid' && languageModule(language) ? language : null
+  return language !== 'mermaid' && languageName(language) ? language : null
 }
 
 // The decorations of one code block. When its spans are not ready, it asks the worker for
