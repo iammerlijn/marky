@@ -6,6 +6,7 @@ import 'prosemirror-view/style/prosemirror.css'
 import '../styles/tokens.css'
 import '../styles/document.css'
 import '../styles/outline.css'
+import '../styles/find.css'
 import { editorViewCtx } from '@milkdown/kit/core'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -13,10 +14,12 @@ import { homeDir } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
 import { mount } from 'svelte'
+import { FIND_EVENT, documentFinder } from '../editor/plugins/find'
 import { JUMP_EVENT } from '../editor/plugins/outline'
 import { anchor, release, restore, type Anchor } from '../editor/plugins/places'
 import { createEditor, markdownOf } from '../editor/setup'
 import App from './App.svelte'
+import FindBar from './FindBar.svelte'
 import {
   getSettings,
   isNotGranted,
@@ -271,6 +274,25 @@ function travel(place: Place | null) {
 
 const isOpen = (id: number) => tabs.tabs.some((t) => t.id === id)
 
+// The find bar searches the view of the active tab. A new tab, or a change between the document
+// and the source view, searches again.
+const documentView = documentFinder(view)
+const findBar = mount(FindBar, {
+  target: chrome,
+  props: {
+    finder: () => (!tabs.active ? null : tabs.active.rawText === null ? documentView : (raw?.finder ?? null)),
+    onClose: focusActive,
+  },
+})
+let searched = ''
+tabs.subscribe(() => {
+  const shown = tabs.active ? `${tabs.active.id}:${tabs.active.rawText !== null}` : ''
+  if (shown === searched) return
+  searched = shown
+  findBar.refresh()
+})
+document.addEventListener(FIND_EVENT, () => findBar.update())
+
 function perform(action: Action) {
   if (action === 'open') void chooseFile()
   else if (action === 'save') void run(() => tabs.save())
@@ -292,6 +314,7 @@ function perform(action: Action) {
     tabs.activateNext(action === 'next-tab' ? 1 : -1)
     focusActive()
   } else if (action === 'settings') void run(() => invoke('open_settings'))
+  else if (action === 'find' || action === 'find-replace') void findBar.open(action === 'find-replace')
 }
 
 listenForShortcuts(perform)

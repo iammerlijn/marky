@@ -1,0 +1,18 @@
+/* The matches of the find bar (src/app/FindBar.svelte), in the document and in the source view.
+   The current match is stronger than the others. */
+.ProseMirror .find-match,
+#raw .cm-searchMatch {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-radius: 2px;
+}
+.ProseMirror .find-current,
+#raw .cm-searchMatch-selected {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+#raw .cm-searchMatch {
+  outline: none;
+}
+/* The search panel of CodeMirror is an empty element: the find bar replaces it (src/app/raw.ts). */
+#raw .cm-panels {
+  display: none;
+}
