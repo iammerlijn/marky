@@ -10,15 +10,24 @@ import { editorViewCtx } from '@milkdown/kit/core'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { homeDir } from '@tauri-apps/api/path'
-import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { message, open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
+import { message } from '@tauri-apps/plugin-dialog'
 import { mount } from 'svelte'
 import { JUMP_EVENT } from '../editor/plugins/outline'
 import { anchor, release, restore, type Anchor } from '../editor/plugins/places'
 import { createEditor, markdownOf } from '../editor/setup'
 import App from './App.svelte'
-import { getSettings, onFileChanged, onOpenFiles, onSettingsChanged, tauriBackend } from './backend'
+import {
+  getSettings,
+  isNotGranted,
+  onDroppedFiles,
+  onFileChanged,
+  onOpenFiles,
+  onSettingsChanged,
+  openFileDialog,
+  saveFileDialog,
+  tauriBackend,
+} from './backend'
 import { History } from './history'
 import { listenForShortcuts, modLabel, type Action } from './keys'
 import type { RawEditor } from './raw'
@@ -62,13 +71,12 @@ view.setProps({
   scrollThreshold: { get top() { return chromeBottom() }, right: 0, bottom: 0, left: 0 },
   scrollMargin: { get top() { return chromeBottom() + 8 }, right: 5, bottom: 5, left: 5 },
 })
-const markdownFiles = [{ name: 'Markdown', extensions: ['md', 'markdown', 'mdx', 'txt'] }]
 const tabs = new Tabs(
   view,
   markdownOf(editor),
   tauriBackend,
   { get: () => window.scrollY, set: (top) => window.scrollTo(0, top) },
-  () => saveDialog({ defaultPath: 'Untitled.md', filters: markdownFiles }),
+  saveFileDialog,
 )
 
 const name = (tab: Tab) => (tab.path === null ? 'Untitled' : tab.path.split('/').pop()!)
@@ -94,19 +102,25 @@ async function openPaths(paths: string[]) {
   view.focus()
 }
 
-// A file from the Recent list that cannot open now goes out of the list.
+// A file from the Recent list that cannot open now goes out of the list. A file of another
+// window of this run needs a grant first: the open dialog shows it (src-tauri/src/grants.rs).
 async function openRecent(path: string) {
   try {
     await tabs.open(path)
     view.focus()
   } catch (error) {
+    if (isNotGranted(error)) {
+      const chosen = await openFileDialog(path)
+      if (chosen) await openPaths([chosen])
+      return
+    }
     removeRecent(path)
     await message(error instanceof Error ? error.message : String(error), { kind: 'error' })
   }
 }
 
 async function chooseFile() {
-  const path = await openDialog({ filters: markdownFiles })
+  const path = await openFileDialog()
   if (path) await openPaths([path])
 }
 
@@ -302,10 +316,7 @@ await appWindow.onCloseRequested(async (event) => {
 })
 
 // A markdown file that is dropped on the window opens in a tab.
-const isMarkdown = (path: string) => markdownFiles[0].extensions.some((ext) => path.toLowerCase().endsWith(`.${ext}`))
-await getCurrentWebview().onDragDropEvent(({ payload }) => {
-  if (payload.type === 'drop') void openPaths(payload.paths.filter(isMarkdown))
-})
+await onDroppedFiles((paths) => void openPaths(paths))
 
 await onFileChanged((path, version) => void run(() => tabs.changed(path, version)))
 await fonts.catch(() => {})

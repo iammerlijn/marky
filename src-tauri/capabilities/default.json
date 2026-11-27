@@ -15,8 +15,6 @@
     "core:window:allow-destroy",
     "core:window:allow-show",
     "core:window:allow-set-size",
-    "dialog:allow-open",
-    "dialog:allow-save",
     "dialog:allow-message"
   ]
 }
