@@ -55,8 +55,8 @@
           {name(tab.path)}
         </button>
         <button class="tab-close" class:dirty={tab.dirty} type="button" onclick={() => onClose(tab.id)} aria-label={`Close ${name(tab.path)}`}>
-          <span class="dot" aria-hidden="true">●</span>
-          <span class="cross" aria-hidden="true">×</span>
+          <svg class="dot" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3" fill="currentColor" /></svg>
+          <svg class="cross" viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 2.5l5 5m0-5l-5 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" /></svg>
         </button>
       </div>
     {/each}
@@ -215,8 +215,10 @@
     padding: 0;
     margin-right: 6px;
     border-radius: 4px;
-    font-weight: 400;
-    line-height: 1;
+  }
+  .tab-close svg {
+    width: 10px;
+    height: 10px;
   }
   .tab-close:hover {
     background: var(--border);
@@ -227,14 +229,13 @@
     display: none;
   }
   .tab-close.dirty .dot {
-    display: inline;
-    font-size: 9px;
+    display: block;
   }
   .tab-close.dirty:hover .dot {
     display: none;
   }
   .tab-close.dirty:hover .cross {
-    display: inline;
+    display: block;
   }
   /* At the right end of the tab bar. Sticky, so that it stays visible when the tabs scroll. */
   .raw-toggle {
