@@ -6,6 +6,9 @@
   --border: #e6e7ea;
   --code-bg: #f4f5f7;
   --accent: #5e6ad2;
+  --selection: color-mix(in srgb, var(--accent) 22%, transparent);
+  /* Lighter than a text selection: the outline shows the selected cells. */
+  --cell-selection: color-mix(in srgb, var(--accent) 10%, transparent);
 
   --font-text: Inter, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;

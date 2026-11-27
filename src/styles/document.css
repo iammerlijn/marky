@@ -54,8 +54,41 @@ body {
   text-decoration: underline;
 }
 
+/* The editor paints the gaps between blocks with its own selection color: without one, that is
+   the system color. A list item paints over the gaps of its list: two layers of a transparent
+   color, so the list item gets no color of its own. */
+.ProseMirror::selection,
 .ProseMirror ::selection {
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  background: var(--selection);
+}
+.ProseMirror li::selection {
+  background: transparent;
+}
+/* The bullets are drawn here, not by the browser: WebKit paints a box of selection color over a
+   bullet of the browser, on top of the color of the list. */
+.ProseMirror ul > li:not([data-item-type='task']) {
+  list-style: none;
+  position: relative;
+}
+.ProseMirror ul > li:not([data-item-type='task'])::before {
+  content: '';
+  position: absolute;
+  left: -18px;
+  top: calc(0.3lh + 3.5px);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.ProseMirror :is(ul, ol) ul > li:not([data-item-type='task'])::before {
+  background: none;
+  border: 1px solid currentColor;
+  box-sizing: border-box;
+}
+.ProseMirror :is(ul, ol) :is(ul, ol) ul > li:not([data-item-type='task'])::before {
+  border: none;
+  border-radius: 0;
+  background: currentColor;
 }
 
 /* The hint in an empty document (plugins/placeholder.ts). */
@@ -157,6 +190,41 @@ body {
 .ProseMirror td > p,
 .ProseMirror th > p {
   margin: 0;
+}
+/* A selected cell is filled (plugins/tables.ts), in place of a stripe for its text. One outline
+   goes around the selected cells: each cell draws the edges that have no selected neighbour. */
+.ProseMirror .selectedCell {
+  --top: 0;
+  --bottom: 0;
+  --left: 0;
+  --right: 0;
+  position: relative;
+  background-image: linear-gradient(var(--cell-selection), var(--cell-selection));
+}
+/* On top of the cell borders, so that the outline has no gaps between the cells. */
+.ProseMirror .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 0 solid var(--accent);
+  border-width: calc(var(--top) * 1.5px) calc(var(--right) * 1.5px) calc(var(--bottom) * 1.5px) calc(var(--left) * 1.5px);
+  pointer-events: none;
+}
+.ProseMirror .selected-top {
+  --top: 1;
+}
+.ProseMirror .selected-bottom {
+  --bottom: 1;
+}
+.ProseMirror .selected-left {
+  --left: 1;
+}
+.ProseMirror .selected-right {
+  --right: 1;
+}
+.ProseMirror .selectedCell::selection,
+.ProseMirror .selectedCell ::selection {
+  background: transparent;
 }
 
 .ProseMirror img {

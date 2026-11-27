@@ -34,6 +34,22 @@ describe('code blocks', () => {
     expect(doc.save().text).toBe('```js\n  x\n```\n')
   })
 
+  test('only the block with the anchor of the selection gets is-editing', async () => {
+    doc = await open('Above.\n\n```mermaid\ngraph TD\n```\n\nBelow.\n')
+    const { view } = doc
+    const block = blocks()[0]
+    const inside = 10
+    const below = view.state.doc.content.size - 2
+    // A drag from below into the block: the source stays hidden, so the text does not move.
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, below, inside)))
+    expect(block.classList.contains('is-editing')).toBe(false)
+    // The cursor in the block, and a selection from the block to below it.
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, inside)))
+    expect(block.classList.contains('is-editing')).toBe(true)
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, inside, below)))
+    expect(block.classList.contains('is-editing')).toBe(true)
+  })
+
   test('a known language gets highlighted, without a change to the document', async () => {
     const text = '```ts\nconst answer: number = 42\n```\n'
     doc = await open(text)
