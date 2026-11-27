@@ -225,9 +225,38 @@
     line-height: 1.4;
     color: var(--text-muted);
   }
+  /* Drawn here: the checkbox of macOS has a fixed small size. */
   .row input {
+    appearance: none;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
     margin: 0;
-    accent-color: var(--accent);
+    border: 1.5px solid var(--text-muted);
+    border-radius: 5px;
+    cursor: pointer;
+    transition:
+      background 200ms ease,
+      border-color 200ms ease;
+  }
+  .row input:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .row input:checked::after {
+    content: '';
+    width: 5px;
+    height: 10px;
+    margin-top: -2px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .row input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   .menu {
