@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Runtime};
 
 #[derive(Clone, Serialize)]
 struct Changed {
@@ -26,8 +26,8 @@ fn is_portal(path: &Path) -> bool {
 // Sends `file-changed` to the window with the version on disk. The frontend ignores a version
 // that it saved itself. Each window has its own watchers, so that one window cannot stop
 // the watch of another window.
-pub fn watch(
-    app: AppHandle,
+pub fn watch<R: Runtime>(
+    app: AppHandle<R>,
     watchers: &Watchers,
     window: &str,
     path: String,

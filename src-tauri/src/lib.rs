@@ -1,6 +1,7 @@
 mod about;
 mod cli;
 mod files;
+mod grants;
 mod settings;
 // Used only on macOS.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -11,15 +12,17 @@ mod terminate;
 mod update;
 mod watcher;
 
+use grants::Grants;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 use tauri::{
-    AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
+    AppHandle, Emitter, Manager, Runtime, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    Window,
 };
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tauri_plugin_dialog::{DialogExt, FilePath, MessageDialogButtons, MessageDialogKind};
 use watcher::Watchers;
 
 // Files to open: from the command line, from a second `marky` command and from "Open With".
@@ -172,38 +175,117 @@ fn quit_app(app: AppHandle) {
     close_all_windows(&app)
 }
 
+// The file commands accept only the paths that the user gave to the window (grants.rs).
 #[tauri::command]
-fn open_file(path: String) -> Result<files::Opened, String> {
+fn open_file<R: Runtime>(
+    window: Window<R>,
+    grants: State<Grants>,
+    path: String,
+) -> Result<files::Opened, String> {
+    grants.check_open(window.label(), Path::new(&path))?;
     files::open(Path::new(&path))
 }
 
 #[tauri::command]
-fn save_file(
+fn save_file<R: Runtime>(
+    window: Window<R>,
+    grants: State<Grants>,
     path: String,
     text: String,
     expected_version: String,
 ) -> Result<String, files::SaveError> {
+    grants
+        .check(window.label(), Path::new(&path))
+        .map_err(files::SaveError::Io)?;
     files::save(Path::new(&path), &text, &expected_version)
 }
 
 #[tauri::command]
-fn create_file(path: String, text: String) -> Result<String, String> {
+fn create_file<R: Runtime>(
+    window: Window<R>,
+    grants: State<Grants>,
+    path: String,
+    text: String,
+) -> Result<String, String> {
+    grants.check(window.label(), Path::new(&path))?;
     files::create(Path::new(&path), &text)
 }
 
 #[tauri::command]
-fn watch(
-    app: AppHandle,
-    window: Window,
+fn watch<R: Runtime>(
+    app: AppHandle<R>,
+    window: Window<R>,
+    grants: State<Grants>,
     watchers: State<Watchers>,
     path: String,
 ) -> Result<(), String> {
+    grants.check(window.label(), Path::new(&path))?;
     watcher::watch(app, &watchers, window.label(), path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn unwatch(window: Window, watchers: State<Watchers>, path: String) {
-    watcher::unwatch(&watchers, window.label(), &path)
+fn unwatch<R: Runtime>(
+    window: Window<R>,
+    grants: State<Grants>,
+    watchers: State<Watchers>,
+    path: String,
+) -> Result<(), String> {
+    grants.check(window.label(), Path::new(&path))?;
+    watcher::unwatch(&watchers, window.label(), &path);
+    Ok(())
+}
+
+// The files that the dialogs show, and the files that a drop opens.
+const MARKDOWN: &[&str] = &["md", "markdown", "mdx", "txt"];
+
+fn is_markdown(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| MARKDOWN.contains(&ext.to_lowercase().as_str()))
+}
+
+// The dialogs are in the backend, so that the backend knows the path that the user chose.
+// The dialog commands are async: a dialog must not block the main thread.
+fn granted(window: &Window, grants: &Grants, chosen: Option<FilePath>) -> Option<String> {
+    let path = chosen?.into_path().ok()?;
+    grants.grant(window.label(), &path);
+    Some(path.to_string_lossy().into_owned())
+}
+
+// `path`: a file to show in the dialog, for a Recent file that the window has no grant for.
+#[tauri::command]
+async fn open_dialog(
+    window: Window,
+    grants: State<'_, Grants>,
+    path: Option<String>,
+) -> Result<Option<String>, ()> {
+    let mut dialog = window
+        .dialog()
+        .file()
+        .add_filter("Markdown", MARKDOWN)
+        .set_parent(&window);
+    if let Some(path) = path.as_deref().map(Path::new) {
+        if let Some(folder) = path.parent() {
+            dialog = dialog.set_directory(folder);
+        }
+        if let Some(name) = path.file_name() {
+            dialog = dialog.set_file_name(name.to_string_lossy());
+        }
+    }
+    Ok(granted(&window, &grants, dialog.blocking_pick_file()))
+}
+
+// Save As. The user can choose a file that exists: the dialog asks before it is replaced.
+#[tauri::command]
+async fn save_dialog(window: Window, grants: State<'_, Grants>) -> Result<Option<String>, ()> {
+    let chosen = window
+        .dialog()
+        .file()
+        .add_filter("Markdown", MARKDOWN)
+        .set_file_name("Untitled.md")
+        .set_parent(&window)
+        .blocking_save_file();
+    Ok(granted(&window, &grants, chosen))
 }
 
 // Each window has its own tabs. Async: a window must not be made on the main thread of a command.
@@ -237,9 +319,18 @@ fn bench_mark(label: String) {
     }
 }
 
+// The window that takes the files gets the grants for them.
 #[tauri::command]
-fn take_pending_files(pending: State<PendingFiles>) -> Vec<String> {
-    std::mem::take(&mut *pending.0.lock().unwrap())
+fn take_pending_files(
+    window: Window,
+    grants: State<Grants>,
+    pending: State<PendingFiles>,
+) -> Vec<String> {
+    let paths = std::mem::take(&mut *pending.0.lock().unwrap());
+    for path in &paths {
+        grants.grant(window.label(), Path::new(path));
+    }
+    paths
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -260,7 +351,9 @@ pub fn run() {
                     .plugin(tauri_plugin_updater::Builder::new().build())?;
                 update::check_in_background(app.handle());
             }
-            let path = app.path().app_config_dir()?.join("settings.json");
+            let config = app.path().app_config_dir()?;
+            app.manage(Grants::load(config.join("grants.json")));
+            let path = config.join("settings.json");
             let loaded = settings::load(&path);
             app.set_theme(settings::native_theme(loaded.theme));
             #[cfg(target_os = "macos")]
@@ -295,7 +388,22 @@ pub fn run() {
             }
         })
         .on_window_event(|window, event| {
+            // A drop grants the markdown files to the window, then the window opens them. Not
+            // the drop event of Tauri: the page can get that before this grant.
+            if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+                let grants = window.state::<Grants>();
+                let dropped: Vec<String> = paths
+                    .iter()
+                    .filter(|path| is_markdown(path))
+                    .map(|path| {
+                        grants.grant(window.label(), path);
+                        path.to_string_lossy().into_owned()
+                    })
+                    .collect();
+                let _ = window.emit_to(window.label(), "dropped-files", dropped);
+            }
             if let tauri::WindowEvent::Destroyed = event {
+                window.state::<Grants>().close_window(window.label());
                 let app = window.app_handle();
                 let windows = app.webview_windows();
                 if last_editor_closed(window.label(), windows.keys().map(String::as_str))
@@ -316,6 +424,8 @@ pub fn run() {
             unwatch,
             new_window,
             take_pending_files,
+            open_dialog,
+            save_dialog,
             bench_mark,
             get_settings,
             set_settings,
@@ -339,7 +449,90 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::last_editor_closed;
+    use super::*;
+    use serde_json::json;
+    use tauri::ipc::{CallbackFn, InvokeBody};
+    use tauri::test::{INVOKE_KEY, get_ipc_response, mock_builder, mock_context, noop_assets};
+    use tauri::webview::InvokeRequest;
+
+    // A call as from JavaScript in the page: `invoke(cmd, args)`.
+    fn invoke(
+        window: &WebviewWindow<tauri::test::MockRuntime>,
+        cmd: &str,
+        args: serde_json::Value,
+    ) -> Result<(), serde_json::Value> {
+        get_ipc_response(
+            window,
+            InvokeRequest {
+                cmd: cmd.into(),
+                callback: CallbackFn(0),
+                error: CallbackFn(1),
+                url: "tauri://localhost".parse().unwrap(),
+                body: InvokeBody::from(args),
+                headers: Default::default(),
+                invoke_key: INVOKE_KEY.into(),
+            },
+        )
+        .map(|_| ())
+    }
+
+    #[test]
+    fn the_file_commands_reject_a_path_that_the_window_did_not_get() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("notes.md");
+        std::fs::write(&file, "text\n").unwrap();
+        let app = mock_builder()
+            .manage(Grants::load(dir.path().join("grants.json")))
+            .manage(Watchers::default())
+            .invoke_handler(tauri::generate_handler![
+                open_file,
+                save_file,
+                create_file,
+                watch,
+                unwatch
+            ])
+            .build(mock_context(noop_assets()))
+            .unwrap();
+        let main = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let other = WebviewWindowBuilder::new(&app, "window-2", Default::default())
+            .build()
+            .unwrap();
+        let path = json!({ "path": file });
+        let calls = [
+            ("open_file", path.clone()),
+            (
+                "save_file",
+                json!({ "path": file, "text": "new\n", "expectedVersion": "x" }),
+            ),
+            ("create_file", json!({ "path": file, "text": "new\n" })),
+            ("watch", path.clone()),
+            ("unwatch", path.clone()),
+        ];
+        for (cmd, args) in &calls {
+            assert!(invoke(&main, cmd, args.clone()).is_err(), "{cmd}");
+        }
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "text\n");
+
+        app.state::<Grants>().grant("main", &file);
+        assert!(invoke(&main, "open_file", path.clone()).is_ok());
+        assert!(invoke(&main, "watch", path.clone()).is_ok());
+        // The grant of the first window is not for the second window.
+        for (cmd, args) in &calls {
+            assert!(invoke(&other, cmd, args.clone()).is_err(), "{cmd}");
+        }
+    }
+
+    #[test]
+    fn a_drop_opens_only_markdown_files() {
+        assert!(is_markdown(Path::new("/home/user/notes.md")));
+        assert!(is_markdown(Path::new("/home/user/README.MD")));
+        assert!(is_markdown(Path::new("/home/user/todo.txt")));
+        assert!(!is_markdown(Path::new("/home/user/photo.png")));
+        assert!(!is_markdown(Path::new("/home/user/md")));
+        assert!(!is_markdown(Path::new("/home/user")));
+    }
 
     #[test]
     fn the_settings_window_closes_with_the_last_editor_window() {
