@@ -16,6 +16,9 @@ mod tests {
     #[test]
     fn relative_paths_become_absolute_and_options_are_skipped() {
         let args = ["marky", "notes.md", "--verbose", "/tmp/b.md"].map(String::from);
-        assert_eq!(files(args, Path::new("/home/user")), vec!["/home/user/notes.md", "/tmp/b.md"]);
+        assert_eq!(
+            files(args, Path::new("/home/user")),
+            vec!["/home/user/notes.md", "/tmp/b.md"]
+        );
     }
 }

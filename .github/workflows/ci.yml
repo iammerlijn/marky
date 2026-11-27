@@ -19,17 +19,21 @@ concurrency:
   group: ${{ github.event_name == 'pull_request' && format('ci-{0}', github.ref) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# The jobs only read the repository.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           filter: blob:none
-      - uses: jdx/mise-action@v5
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
       # The .deb files come from a cache: a slow Ubuntu mirror made the download take 3 minutes.
       # apt downloads only the packages that are not in the cache.
-      - uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/apt-archives
           key: apt-${{ runner.os }}-${{ github.job }}
@@ -41,22 +45,50 @@ jobs:
           # apt makes root-owned files there. The cache can save only the files that it can read.
           sudo chown -R "$USER" ~/apt-archives
       # Only main saves the caches. A pull request reads the cache of main.
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - id: node-modules
-        uses: actions/cache@v6
+      # The cache keeps the downloads of npm, not node_modules: npm ci makes a new node_modules
+      # from the lockfile at each run, and checks each package against it.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json', 'mise.toml') }}
-      - if: steps.node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+      - run: npm ci
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
       - run: dev/check-size.sh
       - run: cargo test
+        working-directory: src-tauri
+      - run: cargo fmt --check
+        working-directory: src-tauri
+      - run: cargo clippy --locked --all-targets -- -D warnings
+        working-directory: src-tauri
+
+  # Advisories of the dependencies. The policy:
+  # - An advisory for a production npm package fails the job.
+  # - The full npm audit also shows the development packages. It does not fail the job.
+  # - cargo audit fails for a vulnerability. Unmaintained and unsound notices are warnings only.
+  # - An advisory on the ignore list does not fail the job. Each one needs a reason and an issue.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          filter: blob:none
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
+      - run: npm audit --omit=dev --audit-level=low
+      # Issue #54: 14 moderate advisories in the WebdriverIO chain (development only).
+      - run: npm audit
+        continue-on-error: true
+      - uses: taiki-e/install-action@073e1fd0bc889c9aee68dbaaa927cde1b5653a83 # v2.90.11
+        with:
+          tool: cargo-audit@0.23.0
+      # The ignore list. RUSTSEC-2024-0429: glib 0.18 in the GTK stack of Tauri, issue #54.
+      - run: cargo audit --ignore RUSTSEC-2024-0429
         working-directory: src-tauri
 
   visual:
@@ -64,22 +96,21 @@ jobs:
     # The same image as `npm run test:visual`, so the approved screenshots match.
     container: mcr.microsoft.com/playwright:v1.65.1-noble
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           filter: blob:none
-      # The Node.js of the image, not of mise: a different key from the other jobs.
-      - id: node-modules
-        uses: actions/cache@v6
+      # The Node.js of the image, not of mise.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: node_modules
-          key: node-modules-playwright-v1.65.1-${{ hashFiles('package-lock.json') }}
-      - if: steps.node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+      - run: npm ci
       - run: npx playwright test
         env:
           HOME: /root
       - if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: visual-differences
           path: test-results
@@ -88,11 +119,11 @@ jobs:
     # App tests in a real window (tests/e2e). tauri-driver needs WebKitWebDriver: Linux only.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           filter: blob:none
-      - uses: jdx/mise-action@v5
-      - uses: actions/cache@v6
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/apt-archives
           key: apt-${{ runner.os }}-${{ github.job }}
@@ -103,19 +134,18 @@ jobs:
           sudo apt-get install -y -o Dir::Cache::Archives="$HOME/apt-archives" libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf webkitgtk-webdriver xvfb dbus
           sudo chown -R "$USER" ~/apt-archives
       # The cache also keeps ~/.cargo/bin, so cargo install skips tauri-driver when it is there.
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo install tauri-driver --locked
       - run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-      - id: node-modules
-        uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json', 'mise.toml') }}
-      - if: steps.node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+      - run: npm ci
       - run: npx tauri build --debug --no-bundle
       # The single-instance plugin needs a D-Bus session.
       - run: dbus-run-session -- xvfb-run --auto-servernum npm run test:e2e
@@ -133,12 +163,12 @@ jobs:
             bundles: dmg
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           filter: blob:none
-      - uses: jdx/mise-action@v5
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
       - if: runner.os == 'Linux'
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/apt-archives
           key: apt-${{ runner.os }}-${{ github.job }}
@@ -148,19 +178,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y -o Dir::Cache::Archives="$HOME/apt-archives" libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
           sudo chown -R "$USER" ~/apt-archives
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - id: node-modules
-        uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json', 'mise.toml') }}
-      - if: steps.node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+      - run: npm ci
       - run: npx tauri build --bundles ${{ matrix.bundles }}
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: marky-${{ matrix.bundles }}
           path: src-tauri/target/release/bundle/${{ matrix.bundles }}/*

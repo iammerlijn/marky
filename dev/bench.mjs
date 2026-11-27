@@ -1,6 +1,6 @@
 // Runs dev/bench.html in WebKit 3 times and prints the results. Start `npm run dev` first.
 // Runs in the Playwright container, as dev/capture.mjs does.
-import { webkit } from 'playwright'
+import { webkit } from '@playwright/test'
 
 const browser = await webkit.launch()
 for (let run = 1; run <= 3; run++) {

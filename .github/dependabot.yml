@@ -1,0 +1,28 @@
+# Weekly update pull requests. The minor and patch updates of an ecosystem come in one pull
+# request. A major update comes in its own pull request, because it can need code changes.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns: ['*']
+        update-types: [minor, patch]
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns: ['*']
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ['*']
+        update-types: [minor, patch]

@@ -1,3 +1,4 @@
 [tools]
 node = "26.13.1"
-rust = "1.100.0"
+# rustfmt and clippy for the cargo fmt and cargo clippy steps of CI.
+rust = { version = "1.100.0", components = "rustfmt,clippy" }

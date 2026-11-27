@@ -14,9 +14,7 @@ export default defineConfig({
   },
   expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.002, animations: 'disabled' } },
   webServer: {
-    // --force: scan all dependencies before the first page. A stale node_modules/.vite (the CI
-    // cache keeps it) makes Vite find a dependency during a test and reload the page.
-    command: 'npm run dev -- --force',
+    command: 'npm run dev',
     url: 'http://127.0.0.1:5173/dev/preview.html',
     reuseExistingServer: true,
   },
