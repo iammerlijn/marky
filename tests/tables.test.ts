@@ -132,3 +132,102 @@ describe('the outline of the selected cells', () => {
     expect(edges()).toEqual({ A: ['top', 'left'], B: ['top', 'bottom', 'right'], one: ['bottom', 'left', 'right'] })
   })
 })
+
+describe('Backspace and Delete in a table', () => {
+  const rows = 'Above.\n\n| A | B |\n|---|---|\n| one | two |\n|  | four |\n| five | six |\n\nBelow.\n'
+
+  // The position before the first cell with this text.
+  function cellBefore(name: string): number {
+    let found = -1
+    doc.view.state.doc.descendants((node, pos) => {
+      if (found < 0 && node.type.spec.tableRole?.includes('cell') && node.textContent === name) found = pos
+      return found < 0
+    })
+    return found
+  }
+
+  function press(key: string): boolean {
+    const { view } = doc
+    const event = new KeyboardEvent('keydown', { key })
+    return view.someProp('handleKeyDown', (f) => f(view, event)) ?? false
+  }
+
+  function selectRow(name: string) {
+    const { view } = doc
+    const $cell = view.state.doc.resolve(cellBefore(name))
+    view.dispatch(view.state.tr.setSelection(CellSelection.rowSelection($cell)))
+  }
+
+  test('Backspace in an empty cell selects its row', async () => {
+    doc = await open(rows)
+    select(cellBefore('') + 2, cellBefore('') + 2)
+    expect(press('Backspace')).toBe(true)
+    const selection = doc.view.state.selection as CellSelection
+    expect(selection).toBeInstanceOf(CellSelection)
+    expect(selection.isRowSelection()).toBe(true)
+    expect(doc.view.dom.querySelectorAll('.selectedCell')).toHaveLength(2)
+  })
+
+  test('Delete with a row selected deletes the row', async () => {
+    doc = await open(rows)
+    selectRow('')
+    expect(press('Delete')).toBe(true)
+    expect(doc.save().text).toBe('Above.\n\n| A | B |\n|---|---|\n| one | two |\n| five | six |\n\nBelow.\n')
+    expect(doc.view.state.selection.$from.parent.textContent).toBe('five')
+  })
+
+  test('with all rows selected, Backspace deletes the table', async () => {
+    doc = await open(rows)
+    const { view } = doc
+    view.dispatch(view.state.tr.setSelection(CellSelection.create(view.state.doc, cellBefore('A'), cellBefore('six'))))
+    expect(press('Backspace')).toBe(true)
+    expect(doc.save().text).toBe('Above.\n\nBelow.\n')
+    expect(view.state.selection.$from.parent.textContent).toBe('Below.')
+  })
+
+  test('in a table with one row, Backspace selects the row, then deletes it and keeps the header', async () => {
+    doc = await open('Above.\n\n| A |\n|---|\n|  |\n\nBelow.\n')
+    select(cellBefore('') + 2, cellBefore('') + 2)
+    press('Backspace')
+    press('Backspace')
+    expect(doc.save().text).toBe('Above.\n\n| A |\n|---|\n\nBelow.\n')
+  })
+
+  test('a table with only a header row stays as it is', async () => {
+    doc = await open('| A | B |\n|---|---|\n')
+    expect(doc.view.state.doc.child(0).childCount).toBe(1)
+  })
+
+  test('in a table with only a header row, a selected row deletes the table', async () => {
+    doc = await open('Above.\n\n| A |\n|---|\n\nBelow.\n')
+    selectRow('A')
+    press('Backspace')
+    expect(doc.save().text).toBe('Above.\n\nBelow.\n')
+  })
+
+  test('with the header row selected, Backspace only clears its cells', async () => {
+    doc = await open(rows)
+    selectRow('A')
+    expect(press('Backspace')).toBe(true)
+    const table = doc.view.state.doc.child(1)
+    expect(table.childCount).toBe(4)
+    expect(table.child(0).textContent).toBe('')
+  })
+
+  test('Backspace in a cell with text is the normal text delete', async () => {
+    doc = await open(rows)
+    select(cellBefore('two') + 2, cellBefore('two') + 2)
+    expect(press('Backspace')).toBe(false)
+    expect(doc.view.state.selection).toBeInstanceOf(TextSelection)
+  })
+
+  test('a cell selection that is not whole rows only clears the cells', async () => {
+    doc = await open(rows)
+    const { view } = doc
+    view.dispatch(view.state.tr.setSelection(CellSelection.create(view.state.doc, cellBefore('one'))))
+    expect(press('Delete')).toBe(true)
+    const table = view.state.doc.child(1)
+    expect(table.childCount).toBe(4)
+    expect(table.child(1).textContent).toBe('two')
+  })
+})
