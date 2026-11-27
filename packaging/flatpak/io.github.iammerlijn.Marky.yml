@@ -26,6 +26,7 @@ modules:
         npm_config_offline: 'true'
     build-commands:
       # Only the packages of the frontend build: the test tools are dev dependencies.
+      # So the build tools (Vite, Svelte and its Vite plugin) must stay in "dependencies".
       - npm ci --offline --omit=dev --ignore-scripts
       - npm run build
       - cargo --offline build --release --features tauri/custom-protocol --manifest-path src-tauri/Cargo.toml
