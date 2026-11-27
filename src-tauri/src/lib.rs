@@ -186,6 +186,18 @@ fn open_file<R: Runtime>(
     files::open(Path::new(&path))
 }
 
+// The version of the file on disk, without its text: "Keep mine" needs it also for a file
+// that is now too large to open.
+#[tauri::command]
+fn file_version<R: Runtime>(
+    window: Window<R>,
+    grants: State<Grants>,
+    path: String,
+) -> Result<String, String> {
+    grants.check(window.label(), Path::new(&path))?;
+    files::version(Path::new(&path)).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn save_file<R: Runtime>(
     window: Window<R>,
@@ -418,6 +430,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             quit_app,
             open_file,
+            file_version,
             save_file,
             create_file,
             watch,
@@ -486,6 +499,7 @@ mod tests {
             .manage(Watchers::default())
             .invoke_handler(tauri::generate_handler![
                 open_file,
+                file_version,
                 save_file,
                 create_file,
                 watch,
@@ -502,6 +516,7 @@ mod tests {
         let path = json!({ "path": file });
         let calls = [
             ("open_file", path.clone()),
+            ("file_version", path.clone()),
             (
                 "save_file",
                 json!({ "path": file, "text": "new\n", "expectedVersion": "x" }),

@@ -38,6 +38,17 @@ A thin rail at the left edge shows one dash for each heading. Hover over the rai
 
 ![The same file in the source view](docs/images/source.png)
 
+### Large files
+
+Marky limits the work for very large files, so that a file cannot use all the memory or stop the window.
+
+| What | Limit | What Marky does |
+|---|---|---|
+| A file | more than 1,000,000 characters (about 1 MB) | Opens the file in the source view, with a message. **Show as Document** shows it as a document. That can take some seconds. A save writes the source exactly. |
+| A file | more than 16 MB | Does not open the file, and shows an error. |
+| A Mermaid diagram | more than 20,000 characters or 500 edges | Shows a message below the source and does not draw the diagram. |
+| A code block | more than 100,000 characters | Shows the code without highlighting. |
+
 ## Keyboard shortcuts
 
 Marky uses `Cmd` on macOS and `Ctrl` on Linux.

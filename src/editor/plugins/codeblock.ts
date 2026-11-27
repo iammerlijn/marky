@@ -16,6 +16,13 @@ import { languageName } from './languages'
 // back: about 45 MB after one TypeScript block (issue 2).
 export const WORKER_IDLE_MS = 10_000
 
+// Limits for the work on the main thread (issue 57). Mermaid draws on the main thread, and its
+// time grows fast with the edges. A larger diagram shows a message, and its source stays.
+export const MAX_DIAGRAM_CHARS = 20_000
+export const MAX_DIAGRAM_EDGES = 500
+// A longer code block is not highlighted: the page makes a decoration for each span.
+export const MAX_HIGHLIGHT_CHARS = 100_000
+
 export function workerTokenizer(): Tokenize {
   let worker: Worker | null = null
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -81,6 +88,7 @@ function refresh(view: EditorView) {
 
 const highlighted = (node: Node) => {
   const language = String(node.attrs.language ?? '').toLowerCase()
+  if (node.content.size > MAX_HIGHLIGHT_CHARS) return null
   return language !== 'mermaid' && languageName(language) ? language : null
 }
 
@@ -289,6 +297,12 @@ class CodeBlockView implements NodeView {
   private async render() {
     const source = this.node.textContent
     this.rendered = source
+    if (source.length > MAX_DIAGRAM_CHARS) {
+      const count = (n: number) => n.toLocaleString('en-US')
+      return this.showError(
+        `This diagram is too large to draw (${count(source.length)} characters). Marky draws diagrams up to ${count(MAX_DIAGRAM_CHARS)} characters.`,
+      )
+    }
     const mermaid = await loaders.mermaid()
     const dark = isDark()
     mermaid.initialize({
@@ -296,6 +310,12 @@ class CodeBlockView implements NodeView {
       securityLevel: 'strict',
       theme: dark ? 'dark' : 'neutral',
       themeVariables: { fontFamily: getComputedStyle(this.dom).fontFamily },
+      // Mermaid shows an error for a diagram with more edges, before the layout.
+      maxTextSize: MAX_DIAGRAM_CHARS,
+      maxEdges: MAX_DIAGRAM_EDGES,
+      // Without this, a draw error (for example too many edges) leaves Mermaid's error picture
+      // in the page body, also after the tab closes. Marky shows the error below the source.
+      suppressErrorRendering: true,
     })
     try {
       const { svg } = await mermaid.render(`mermaid-${++diagrams}`, source)
@@ -303,10 +323,20 @@ class CodeBlockView implements NodeView {
       this.diagram!.innerHTML = svg
       this.error!.hidden = true
     } catch (error) {
-      // Keep the last valid diagram, and show the error below it.
-      this.error!.textContent = error instanceof Error ? error.message : String(error)
-      this.error!.hidden = false
+      const message = error instanceof Error ? error.message : String(error)
+      // Mermaid stops at the limit, so its message says "500 edges found, but the limit is 500".
+      this.showError(
+        message.startsWith('Edge limit exceeded')
+          ? `This diagram has too many edges to draw. Marky draws diagrams up to ${MAX_DIAGRAM_EDGES} edges.`
+          : message,
+      )
     }
+  }
+
+  // Keep the last valid diagram, and show the error below it.
+  private showError(message: string) {
+    this.error!.textContent = message
+    this.error!.hidden = false
   }
 
   stopEvent(event: Event) {
