@@ -52,8 +52,12 @@ export function matchesIn(text: string, query: Query): [number, number][] {
   const pattern = new RegExp(escape(query.text), query.caseSensitive ? 'gu' : 'giu')
   for (let m = pattern.exec(text); m; m = pattern.exec(text)) {
     const end = m.index + m[0].length
-    if (query.wholeWord && (WORD.test(text[m.index - 1] ?? '') || WORD.test(text[end] ?? ''))) {
-      pattern.lastIndex = m.index + 1
+    // A character outside the BMP is two UTF-16 code units: test the full character on each side.
+    const before = [...text.slice(Math.max(0, m.index - 2), m.index)].at(-1) ?? ''
+    const after = [...text.slice(end, end + 2)][0] ?? ''
+    if (query.wholeWord && (WORD.test(before) || WORD.test(after))) {
+      // Go on after the first character of the match, not into the middle of a surrogate pair.
+      pattern.lastIndex = m.index + (text.codePointAt(m.index)! > 0xffff ? 2 : 1)
       continue
     }
     found.push([m.index, end])

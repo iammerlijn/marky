@@ -60,6 +60,11 @@ describe('matches', () => {
     expect(matchesIn('anything', q(''))).toEqual([])
   })
 
+  test('whole word with characters outside the BMP', () => {
+    expect(matchesIn('😀a 😀', q('😀', { wholeWord: true }))).toEqual([[4, 6]])
+    expect(matchesIn('𝐀a a𝐀 a', q('a', { wholeWord: true }))).toEqual([[8, 9]])
+  })
+
   test('in headings, lists, table cells, code blocks, diagrams and collapsibles, not in front matter', async () => {
     doc = await open(original)
     const found = findMatches(doc.view.state.doc, q('plan', { wholeWord: true })).map((m) => {
@@ -198,5 +203,15 @@ describe('source view', () => {
     expect(text).toBe('---\ntitle: idea\n---\n\nA x. xning.\n')
     raw.finder.search(null)
     expect(raw.finder.status().total).toBe(0)
+  })
+
+  test('an empty find does not replace the matches of the previous query', () => {
+    start('A plan.\n')
+    raw.finder.search(q('plan'))
+    raw.finder.search(q(''))
+    raw.finder.go(1)
+    raw.finder.replace('x')
+    raw.finder.replaceAll('x')
+    expect(text).toBe('A plan.\n')
   })
 })

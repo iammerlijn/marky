@@ -64,12 +64,17 @@ export class RawEditor {
   // Find and replace with @codemirror/search, for the find bar (src/app/FindBar.svelte).
   readonly finder: Finder = {
     search: (query) => {
-      if (!query?.text) return void closeSearchPanel(this.view)
+      if (!query?.text) {
+        // Clear the query too: else Replace All still replaces the matches of the old query.
+        this.view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) })
+        return void closeSearchPanel(this.view)
+      }
       openSearchPanel(this.view)
       const { text: search, caseSensitive, wholeWord } = query
       this.view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search, caseSensitive, wholeWord, literal: true })) })
     },
     go: (direction, stay = false) => {
+      if (!getSearchQuery(this.view.state).search) return
       if (stay) this.view.dispatch({ selection: { anchor: this.view.state.selection.main.from } })
       if (direction === 1) findNext(this.view)
       else findPrevious(this.view)
@@ -93,6 +98,7 @@ export class RawEditor {
 
   private withReplacement(replace: string, command: (view: EditorView) => boolean) {
     const query = getSearchQuery(this.view.state)
+    if (!query.search) return
     this.view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ ...query, replace })) })
     command(this.view)
   }
