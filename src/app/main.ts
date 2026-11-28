@@ -316,15 +316,15 @@ await onFileChanged((path, version) => void run(() => tabs.changed(path, version
 await fonts.catch(() => {})
 
 await onOpenFiles(openPaths, isFirstWindow)
-if (!isFirstWindow) {
-  tabs.newTab()
-  view.focus()
-}
+if (!isFirstWindow) tabs.newTab()
 void invoke('bench_mark', { label: 'opened' })
 // The window starts hidden (tauri.conf.json, new_window in src-tauri/src/lib.rs), so that no
 // empty window shows. Show it now: the next paint has the document. Not in a frame callback:
-// a hidden web view can stop the frames.
-void appWindow.show()
+// a hidden web view can stop the frames. Then the new file of a new window gets the cursor,
+// so that the user can type at once.
+void appWindow.show().then(() => {
+  if (!isFirstWindow) focusActive()
+})
 
 // For dev/measure-app.sh: the time from the process start to the painted files. The backend
 // prints it only when MARKY_BENCH is set.
