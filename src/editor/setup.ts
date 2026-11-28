@@ -27,6 +27,7 @@ import { outline } from './plugins/outline'
 import { places } from './plugins/places'
 import { placeholder } from './plugins/placeholder'
 import { slash } from './plugins/slash'
+import { tasks } from './plugins/tasks'
 import { withTableSelection } from './plugins/tables'
 
 // Serializer settings that gave the fewest changes in the fidelity test.
@@ -68,6 +69,7 @@ export async function createEditor(root: HTMLElement, text = '', onDocChange = (
     .use(placeholder)
     .use(boxDrawing)
     .use(images)
+    .use(tasks)
     .use(links)
     .use(outline)
     .use(places)
