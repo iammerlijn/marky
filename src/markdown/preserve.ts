@@ -145,7 +145,7 @@ export function save(md: Markdown, source: Source, doc: Node): { text: string; c
       ? blocks[origin[j]].text
       : node.type.name === 'table' && before?.node?.type === node.type
         ? serializeTable(md, doc, node, before, eol)
-        : ((before?.node && toggledTasks(node, before)) ?? serializeBlock(md, doc, node, eol))
+        : ((before?.node && toggledTasks(md, node, before)) ?? serializeBlock(md, doc, node, eol))
     if (text !== '') items.push({ text, place: place[j], edited })
   })
   flushHidden(blocks.length)
@@ -210,10 +210,11 @@ function serializeTable(md: Markdown, doc: Node, table: Node, before: Block, eol
 
 // An edited block at its original place that differs only in checked tasks: the original
 // text with only the checkbox of those tasks changed. Else null. The task markers are found
-// in text order, the same order as the task items in the node.
+// in text order. A marker can also be in other text, for example in a code block, so the new
+// text is parsed again: it must give the edited node.
 const TASK_MARKER = /^([ \t]*(?:[-*+]|\d+[.)])[ \t]+\[)[ xX]\]/gm
 
-function toggledTasks(node: Node, before: Block): string | null {
+function toggledTasks(md: Markdown, node: Node, before: Block): string | null {
   const checks: (boolean | null)[] = []
   if (!sameExceptChecks(node, before.node!, checks) || checks.every((c) => c === null)) return null
   const markers = [...before.text.matchAll(TASK_MARKER)]
@@ -225,7 +226,8 @@ function toggledTasks(node: Node, before: Block): string | null {
     const at = markers[k].index + markers[k][1].length
     text = text.slice(0, at) + (checks[k] ? 'x' : ' ') + text.slice(at + 1)
   }
-  return text
+  const parsed = md.read(text).doc
+  return parsed.childCount === 1 && sameContent(parsed.child(0), node) ? text : null
 }
 
 // Equal, except the checked attribute of task items. checks gets, for each task item in
