@@ -186,7 +186,7 @@ fn close_all_windows(app: &AppHandle) {
 }
 
 // Linux: Ctrl+Q in the page. There is no "Quit Marky?" question and no setting for it. Each
-// window still asks about its unsaved changes, and the next start reopens the tabs.
+// window still asks about its unsaved changes.
 #[tauri::command]
 fn quit_app(app: AppHandle) {
     close_all_windows(&app)

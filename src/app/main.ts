@@ -48,8 +48,9 @@ const syncFullscreen = async () =>
   document.documentElement.classList.toggle('fullscreen', await appWindow.isFullscreen())
 void syncFullscreen()
 void appWindow.onResized(() => void syncFullscreen())
-// The first window restores and saves the session and takes the files from the command line.
-// A window from Cmd/Ctrl+N starts empty.
+// The first window takes the files from the command line and starts on the welcome screen:
+// Marky does not open the files of the last run again. A window from Cmd/Ctrl+N starts with
+// a new file.
 const isFirstWindow = appWindow.label === 'main'
 const editorRoot = document.getElementById('editor')!
 // Check for unsaved edits a short time after a change. The editor calls it for each new document.
@@ -159,8 +160,7 @@ const rawTabs = new Set<number>()
 // A file that a tab shows for the first time goes to the top of the Recent list.
 const known = new Map<number, string>()
 
-// Window title, the visible editor and the session for the next start.
-const SESSION = 'marky.session'
+// Window title and the visible editor.
 function update() {
   const active = tabs.active
   for (const id of rawTabs) {
@@ -188,12 +188,6 @@ function update() {
   editorRoot.hidden = !active || inRaw
   rawRoot.hidden = !inRaw
   void appWindow.setTitle(active ? `${active.dirty ? '• ' : ''}${name(active)} — Marky` : 'Marky')
-  if (!isFirstWindow) return
-  try {
-    localStorage.setItem(SESSION, JSON.stringify(tabs.session()))
-  } catch {
-    // Without storage, the next start opens no tabs.
-  }
 }
 tabs.subscribe(update)
 editorRoot.hidden = true
@@ -321,22 +315,16 @@ await onDroppedFiles((paths) => void openPaths(paths))
 await onFileChanged((path, version) => void run(() => tabs.changed(path, version)))
 await fonts.catch(() => {})
 
-// Reopen the tabs of the last session. A file that is gone now is skipped without a message.
-if (isFirstWindow) try {
-  const session = JSON.parse(localStorage.getItem(SESSION) ?? 'null') as ReturnType<Tabs['session']> | null
-  for (const path of session?.paths ?? []) await tabs.open(path).catch(() => {})
-  const active = tabs.tabs.find((t) => t.path === session?.active)
-  if (active) tabs.activate(active.id)
-} catch {
-  // No session.
-}
-
 await onOpenFiles(openPaths, isFirstWindow)
+if (!isFirstWindow) tabs.newTab()
 void invoke('bench_mark', { label: 'opened' })
 // The window starts hidden (tauri.conf.json, new_window in src-tauri/src/lib.rs), so that no
 // empty window shows. Show it now: the next paint has the document. Not in a frame callback:
-// a hidden web view can stop the frames.
-void appWindow.show()
+// a hidden web view can stop the frames. Then the new file of a new window gets the cursor,
+// so that the user can type at once.
+void appWindow.show().then(() => {
+  if (!isFirstWindow) focusActive()
+})
 
 // For dev/measure-app.sh: the time from the process start to the painted files. The backend
 // prints it only when MARKY_BENCH is set.

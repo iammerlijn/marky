@@ -381,9 +381,4 @@ export class Tabs {
     }
     this.emit()
   }
-
-  session(): { paths: string[]; active: string | null } {
-    const paths = this.tabs.flatMap((t) => (t.path === null ? [] : [t.path]))
-    return { paths, active: this.active?.path ?? null }
-  }
 }
