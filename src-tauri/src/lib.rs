@@ -125,7 +125,7 @@ fn show_settings(app: &AppHandle) -> tauri::Result<()> {
     // Linux shows the About section too (src/app/Settings.svelte). The page then sets the height
     // to its content (src/app/settings.ts).
     let height = if cfg!(target_os = "macos") {
-        192.0
+        176.0
     } else {
         226.0
     };
