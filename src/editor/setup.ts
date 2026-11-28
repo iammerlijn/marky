@@ -19,6 +19,7 @@ import type { Markdown } from '../markdown/preserve'
 import { boxDrawing } from './plugins/boxdrawing'
 import { codeblock } from './plugins/codeblock'
 import { collapsible } from './plugins/collapsible'
+import { find } from './plugins/find'
 import { frontmatter } from './plugins/frontmatter'
 import { images } from './plugins/images'
 import { links } from './plugins/links'
@@ -70,6 +71,7 @@ export async function createEditor(root: HTMLElement, text = '', onDocChange = (
     .use(links)
     .use(outline)
     .use(places)
+    .use(find)
     .use(docChange(onDocChange))
     .create()
 }

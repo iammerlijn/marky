@@ -38,6 +38,12 @@ A thin rail at the left edge shows one dash for each heading. Hover over the rai
 
 ![The same file in the source view](docs/images/source.png)
 
+### Find and replace
+
+`Cmd/Ctrl+F` opens the find bar. It highlights all matches. `Enter` and `Shift+Enter` go to the next and previous match, and `Esc` closes the bar. `Cmd+Option+F` (macOS) or `Ctrl+H` (Linux) also shows a replace field. One Undo reverses "Replace All".
+
+Find searches the text of the document, also in collapsed sections and in the source of diagrams. It does not search the front matter panel. The source view searches all of the file.
+
 ### Large files
 
 Marky limits the work for very large files, so that a file cannot use all the memory or stop the window.
@@ -61,9 +67,10 @@ Marky uses `Cmd` on macOS and `Ctrl` on Linux.
 | `Cmd/Ctrl+W` | Close the tab |
 | `Cmd/Ctrl+N` | New window |
 | `Cmd/Ctrl+Shift+M` | Show or hide the markdown source |
+| `Cmd/Ctrl+F` | Find |
 | `Cmd/Ctrl+,` | Open the settings |
 
-Back, forward and tab changes use other keys on Linux:
+Back, forward, tab changes and find and replace use other keys on Linux:
 
 | Action | macOS | Linux |
 |---|---|---|
@@ -71,6 +78,7 @@ Back, forward and tab changes use other keys on Linux:
 | Forward | `Cmd+]` | `Alt+Right` |
 | Previous tab | `Cmd+Option+Left`, `Cmd+Shift+[`, `Ctrl+Shift+Tab` | `Ctrl+PageUp`, `Ctrl+Shift+Tab` |
 | Next tab | `Cmd+Option+Right`, `Cmd+Shift+]`, `Ctrl+Tab` | `Ctrl+PageDown`, `Ctrl+Tab` |
+| Find and replace | `Cmd+Option+F` | `Ctrl+H` |
 
 Back and forward go to the places where you were before: a tab change, an opened file or a jump with the outline adds a place. Places of closed tabs are skipped.
 

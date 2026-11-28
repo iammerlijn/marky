@@ -21,6 +21,12 @@ pub const GO: [(&str, &str, &str); 4] = [
     ("next-tab", "Next Tab", "CmdOrCtrl+Alt+Right"),
 ];
 
+// Below the items of the Edit menu. The page also handles Ctrl+F and Ctrl+H on Linux (src/app/keys.ts).
+pub const FIND: [(&str, &str, &str); 2] = [
+    ("find", "Find…", "CmdOrCtrl+F"),
+    ("find-replace", "Find and Replace…", "CmdOrCtrl+Alt+F"),
+];
+
 pub const QUIT: &str = "quit";
 // Opens the settings window (lib.rs). Linux: Ctrl+, in the page (src/app/keys.ts).
 pub const SETTINGS: &str = "settings";
@@ -54,18 +60,27 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         go = go.item(&MenuItem::with_id(app, id, label, true, Some(accelerator))?);
     }
     // Undo and Redo stay out: the editor handles Cmd+Z itself.
-    let edit = SubmenuBuilder::new(app, "Edit")
+    let mut edit = SubmenuBuilder::new(app, "Edit")
         .cut()
         .copy()
         .paste()
         .select_all()
-        .build()?;
+        .separator();
+    for (id, label, accelerator) in FIND {
+        edit = edit.item(&MenuItem::with_id(app, id, label, true, Some(accelerator))?);
+    }
     let window = SubmenuBuilder::new(app, "Window")
         .minimize()
         .fullscreen()
         .build()?;
     MenuBuilder::new(app)
-        .items(&[&marky, &file.build()?, &edit, &go.build()?, &window])
+        .items(&[
+            &marky,
+            &file.build()?,
+            &edit.build()?,
+            &go.build()?,
+            &window,
+        ])
         .build()
 }
 
@@ -88,6 +103,11 @@ mod tests {
         for (id, _, _) in super::GO {
             assert!(go.get(id).is_some());
         }
+        let edit = menu.items().unwrap()[2].as_submenu().unwrap().clone();
+        assert_eq!(edit.text().unwrap(), "Edit");
+        for (id, _, _) in super::FIND {
+            assert!(edit.get(id).is_some());
+        }
         let marky = menu.items().unwrap()[0].as_submenu().unwrap().clone();
         let items = marky.items().unwrap();
         assert!(
@@ -104,7 +124,11 @@ mod tests {
 
     #[test]
     fn each_action_has_a_unique_id_and_shortcut() {
-        let all: Vec<_> = super::ACTIONS.iter().chain(super::GO.iter()).collect();
+        let all: Vec<_> = super::ACTIONS
+            .iter()
+            .chain(super::GO.iter())
+            .chain(super::FIND.iter())
+            .collect();
         let ids: std::collections::HashSet<_> = all.iter().map(|(id, _, _)| id).collect();
         let keys: std::collections::HashSet<_> = all.iter().map(|(_, _, key)| key).collect();
         assert_eq!(ids.len(), all.len());

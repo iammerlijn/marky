@@ -1,6 +1,7 @@
 // App shortcuts: Cmd on macOS, Ctrl on Linux.
 
-export type Action = 'open' | 'save' | 'close-tab' | 'new-tab' | 'new-window' | 'toggle-raw' | 'quit' | 'settings' | Navigation
+export type Action = 'open' | 'save' | 'close-tab' | 'new-tab' | 'new-window' | 'toggle-raw' | 'quit' | 'settings' | Find | Navigation
+export type Find = 'find' | 'find-replace'
 export type Navigation = 'back' | 'forward' | 'previous-tab' | 'next-tab'
 
 const actions: Record<string, Action> = { o: 'open', s: 'save', w: 'close-tab', t: 'new-tab', n: 'new-window' }
@@ -11,8 +12,12 @@ export function shortcut(event: KeyboardEvent, mac = isMac): Action | null {
   const nav = navigation(event, mac)
   if (nav) return nav
   const mod = mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey
-  if (!mod || event.altKey) return null
+  if (!mod) return null
+  // Cmd+Option+F on macOS. With Option, the key of F gives another character: use the code.
+  if (event.altKey) return mac && !event.shiftKey && event.code === 'KeyF' ? 'find-replace' : null
   const key = event.key.toLowerCase()
+  if (key === 'f') return event.shiftKey ? null : 'find'
+  if (key === 'h') return mac || event.shiftKey ? null : 'find-replace'
   if (key === 'm') return event.shiftKey ? 'toggle-raw' : null
   // On macOS, Cmd+Q is in the menu bar (src-tauri/src/menu.rs).
   if (key === 'q') return mac ? null : 'quit'

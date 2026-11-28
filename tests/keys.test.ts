@@ -43,6 +43,17 @@ test('Cmd+Shift+M on macOS and Ctrl+Shift+M on Linux toggle raw mode', () => {
   expect(shortcut(key('m', { ctrlKey: true }), false)).toBeNull()
 })
 
+test('Cmd/Ctrl+F finds, Cmd+Option+F (macOS) and Ctrl+H (Linux) find and replace', () => {
+  expect(shortcut(key('f', { metaKey: true }), true)).toBe('find')
+  expect(shortcut(key('f', { ctrlKey: true }), false)).toBe('find')
+  // With Option, the key of F gives ƒ on macOS.
+  expect(shortcut(key('ƒ', { metaKey: true, altKey: true, code: 'KeyF' }), true)).toBe('find-replace')
+  expect(shortcut(key('h', { ctrlKey: true }), false)).toBe('find-replace')
+  // Cmd+H hides the app on macOS. Ctrl+Alt+F is not a shortcut on Linux.
+  expect(shortcut(key('h', { metaKey: true }), true)).toBeNull()
+  expect(shortcut(key('f', { ctrlKey: true, altKey: true, code: 'KeyF' }), false)).toBeNull()
+})
+
 test('Caps Lock and Shift do not matter for the letter', () => {
   expect(shortcut(key('S', { ctrlKey: true }), false)).toBe('save')
 })

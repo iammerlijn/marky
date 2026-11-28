@@ -1,5 +1,5 @@
 // Dev preview of the app chrome (tabs, bars) without Tauri: files are in memory.
-// ?state=tabs (default) | banner | empty. ?theme=light | dark forces a theme (src/app/theme.ts).
+// ?state=tabs (default) | banner | empty | raw | find | find-raw. ?theme=light | dark forces a theme (src/app/theme.ts).
 import '@fontsource/inter/400.css'
 import '@fontsource/inter/600.css'
 import '@fontsource/jetbrains-mono/400.css'
@@ -7,14 +7,17 @@ import 'prosemirror-view/style/prosemirror.css'
 import '../src/styles/tokens.css'
 import '../src/styles/document.css'
 import '../src/styles/outline.css'
+import '../src/styles/find.css'
 import { editorViewCtx } from '@milkdown/kit/core'
 import { mount } from 'svelte'
 import App from '../src/app/App.svelte'
+import FindBar from '../src/app/FindBar.svelte'
 import type { Backend } from '../src/app/backend'
 import { modLabel } from '../src/app/keys'
 import { RawEditor } from '../src/app/raw'
 import { Tabs } from '../src/app/tabs'
 import { applyTheme, type Theme } from '../src/app/theme'
+import { FIND_EVENT, documentFinder } from '../src/editor/plugins/find'
 import { createEditor, markdownOf } from '../src/editor/setup'
 import sample from './sample.md?raw'
 
@@ -78,7 +81,14 @@ mount(App, {
   },
 })
 
-// ?state=tabs (default) | banner | empty | raw
+const documentView = documentFinder(view)
+const findBar = mount(FindBar, {
+  target: document.getElementById('chrome')!,
+  props: { finder: () => (!tabs.active ? null : tabs.active.rawText === null ? documentView : raw.finder), onClose: () => {} },
+})
+document.addEventListener(FIND_EVENT, () => findBar.update())
+
+// ?state=tabs (default) | banner | empty | raw | find | find-raw
 const state = new URLSearchParams(location.search).get('state') ?? 'tabs'
 if (state !== 'empty') {
   for (const path of files.keys()) await tabs.open(path)
@@ -92,5 +102,7 @@ if (state !== 'empty') {
     await tabs.changed('/home/user/notes/release-plan.md', '2')
   }
 }
-if (state === 'raw') tabs.enterRaw()
+if (state === 'raw' || state === 'find-raw') tabs.enterRaw()
+// The find bar with the replace field. The test types the text.
+if (state.startsWith('find')) await findBar.open(true)
 document.body.dataset.ready = 'true'

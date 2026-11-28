@@ -140,6 +140,26 @@ test('app: markdown source button', async ({ page }) => {
   await expect(page.locator('#editor')).toBeVisible()
 })
 
+test('app: find bar keys', async ({ page }) => {
+  await page.goto('/dev/app.html?state=find')
+  await page.waitForSelector('body[data-ready]')
+  const field = page.getByRole('textbox', { name: 'Find' })
+  const count = page.locator('.find-bar .count')
+  await expect(field).toBeFocused()
+  await field.fill('the')
+  await expect(count).toHaveText(/^1 of \d+$/)
+  await field.press('Enter')
+  await expect(count).toHaveText(/^2 of \d+$/)
+  await field.press('Shift+Enter')
+  await field.press('Shift+Enter')
+  const total = (await count.textContent())!.split(' of ')[1]
+  await expect(count).toHaveText(`${total} of ${total}`)
+  await expect(page.locator('.ProseMirror .find-current')).toBeInViewport()
+  await field.press('Escape')
+  await expect(page.locator('.find-bar')).toBeHidden()
+  await expect(page.locator('.ProseMirror .find-match')).toHaveCount(0)
+})
+
 const documents = [
   ['sample', '/dev/preview.html'],
   ['tables', '/dev/preview.html?file=tables.md'],
@@ -189,6 +209,19 @@ for (const colorScheme of ['light', 'dark'] as const) {
           if (inView) await diagram.locator('svg').waitFor()
         }
         await expect(page).toHaveScreenshot(`app-${state}-scrolled-${colorScheme}.png`)
+      })
+    }
+
+    // The find bar with the replace field, in the document and in the source view.
+    for (const state of ['find', 'find-raw']) {
+      test(`app: ${state}`, async ({ page }) => {
+        await page.goto(`/dev/app.html?state=${state}`)
+        await page.waitForSelector('body[data-ready]')
+        await page.evaluate(() => document.fonts.ready)
+        await page.getByRole('textbox', { name: 'Find' }).fill('release')
+        await page.getByRole('textbox', { name: 'Replace' }).fill('launch')
+        await expect(page.locator('.find-bar .count')).toHaveText(/^1 of \d+$/)
+        await expect(page).toHaveScreenshot(`app-${state}-${colorScheme}.png`)
       })
     }
 
