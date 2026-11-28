@@ -536,12 +536,6 @@ describe('new tab', () => {
     typeAtStart('x')
     expect(await tabs.close(tabs.active!.id, cancel)).toBe(false)
   })
-
-  test('the session does not list a new tab without a file', async () => {
-    await tabs.open('/a.md')
-    tabs.newTab()
-    expect(tabs.session()).toEqual({ paths: ['/a.md'], active: null })
-  })
 })
 
 describe('raw mode', () => {
@@ -749,15 +743,6 @@ describe('a large file', () => {
     expect(tabs.active?.rawText).toBe(large)
     expect(tabs.active?.banner).toBe('large')
     expect(parsed(large)).toBe(false)
-  })
-})
-
-describe('session', () => {
-  test('the session lists the open files and the active file', async () => {
-    await tabs.open('/a.md')
-    await tabs.open('/b.md')
-    tabs.activate(tab('/a.md').id)
-    expect(tabs.session()).toEqual({ paths: ['/a.md', '/b.md'], active: '/a.md' })
   })
 })
 

@@ -1,4 +1,4 @@
-// Recent files for the welcome screen. In localStorage, like the session: all windows share them.
+// Recent files for the welcome screen. In localStorage: all windows share them.
 
 export interface RecentFile {
   path: string

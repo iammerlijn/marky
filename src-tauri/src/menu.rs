@@ -5,8 +5,9 @@ use tauri::menu::{Menu, MenuBuilder, MenuItem, SubmenuBuilder};
 use tauri::{AppHandle, Runtime};
 
 pub const ACTIONS: [(&str, &str, &str); 6] = [
-    ("new-tab", "New Tab", "CmdOrCtrl+T"),
-    ("new-window", "New Window", "CmdOrCtrl+N"),
+    // The page also handles Cmd+T for a new file (src/app/keys.ts).
+    ("new-tab", "New File", "CmdOrCtrl+N"),
+    ("new-window", "New Window", "CmdOrCtrl+Shift+N"),
     ("open", "Open…", "CmdOrCtrl+O"),
     ("save", "Save", "CmdOrCtrl+S"),
     ("close-tab", "Close Tab", "CmdOrCtrl+W"),

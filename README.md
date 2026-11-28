@@ -57,9 +57,9 @@ Marky uses `Cmd` on macOS and `Ctrl` on Linux.
 |---|---|
 | `Cmd/Ctrl+O` | Open a file |
 | `Cmd/Ctrl+S` | Save |
-| `Cmd/Ctrl+T` | New tab |
+| `Cmd/Ctrl+N`, `Cmd/Ctrl+T` | New file |
 | `Cmd/Ctrl+W` | Close the tab |
-| `Cmd/Ctrl+N` | New window |
+| `Cmd/Ctrl+Shift+N` | New window |
 | `Cmd/Ctrl+Shift+M` | Show or hide the markdown source |
 | `Cmd/Ctrl+,` | Open the settings |
 

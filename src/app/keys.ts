@@ -3,7 +3,7 @@
 export type Action = 'open' | 'save' | 'close-tab' | 'new-tab' | 'new-window' | 'toggle-raw' | 'quit' | 'settings' | Navigation
 export type Navigation = 'back' | 'forward' | 'previous-tab' | 'next-tab'
 
-const actions: Record<string, Action> = { o: 'open', s: 'save', w: 'close-tab', t: 'new-tab', n: 'new-window' }
+const actions: Record<string, Action> = { o: 'open', s: 'save', w: 'close-tab', t: 'new-tab', n: 'new-tab' }
 
 export const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform || navigator.userAgent)
 
@@ -14,6 +14,8 @@ export function shortcut(event: KeyboardEvent, mac = isMac): Action | null {
   if (!mod || event.altKey) return null
   const key = event.key.toLowerCase()
   if (key === 'm') return event.shiftKey ? 'toggle-raw' : null
+  // Cmd/Ctrl+N is a new file, Cmd/Ctrl+Shift+N a new window.
+  if (key === 'n' && event.shiftKey) return 'new-window'
   // On macOS, Cmd+Q is in the menu bar (src-tauri/src/menu.rs).
   if (key === 'q') return mac ? null : 'quit'
   // On macOS, Cmd+, is "Settings…" in the menu bar.
