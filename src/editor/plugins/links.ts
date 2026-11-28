@@ -62,7 +62,13 @@ export const links = $prose(
         element.hidden = true
         document.body.append(element)
         tips.set(view, element)
-        return { destroy: () => element.remove() }
+        return {
+          // A new document, for example after a reload of the file: the link can be gone.
+          update: (view, previous) => {
+            if (view.state.doc !== previous.doc) hideTip(view)
+          },
+          destroy: () => element.remove(),
+        }
       },
       props: {
         handleDOMEvents: {

@@ -79,3 +79,13 @@ test('the tooltip is removed with the editor', async () => {
   await doc.destroy()
   expect(document.querySelector('.link-tip')).toBeNull()
 })
+
+// A reload of the file replaces the content in one transaction (Tabs.reload).
+test('a reload of the file hides the tooltip', async () => {
+  doc = await open('[a](https://example.com)\n')
+  hover(doc.view.dom.querySelector('a')!)
+  expect(tip().hidden).toBe(false)
+  const { view } = doc
+  view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, doc.parse('Other text.\n').content))
+  expect(tip().hidden).toBe(true)
+})
