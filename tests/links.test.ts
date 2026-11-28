@@ -51,3 +51,41 @@ test('openableUrl gives the URL only for web and mail links', () => {
   expect(openableUrl('vscode://file/etc')).toBeNull()
   expect(openableUrl('')).toBeNull()
 })
+
+const tip = () => document.querySelector<HTMLElement>('.link-tip')!
+
+function hover(target: Element) {
+  target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+}
+
+test('the pointer on a link shows its URL below the link, and off the link hides it', async () => {
+  doc = await open('See [the site](https://example.com/page) and [notes](notes.md).\n')
+  const [web, file] = [...doc.view.dom.querySelectorAll('a')]
+  expect(tip().hidden).toBe(true)
+  hover(web)
+  expect(tip().hidden).toBe(false)
+  expect(tip().textContent).toBe('https://example.com/page')
+  hover(file)
+  expect(tip().textContent).toBe('notes.md')
+  hover(doc.view.dom.querySelector('p')!)
+  expect(tip().hidden).toBe(true)
+  hover(web)
+  doc.view.dom.dispatchEvent(new MouseEvent('mouseleave'))
+  expect(tip().hidden).toBe(true)
+})
+
+test('the tooltip is removed with the editor', async () => {
+  doc = await open('[a](https://example.com)\n')
+  await doc.destroy()
+  expect(document.querySelector('.link-tip')).toBeNull()
+})
+
+// A reload of the file replaces the content in one transaction (Tabs.reload).
+test('a reload of the file hides the tooltip', async () => {
+  doc = await open('[a](https://example.com)\n')
+  hover(doc.view.dom.querySelector('a')!)
+  expect(tip().hidden).toBe(false)
+  const { view } = doc
+  view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, doc.parse('Other text.\n').content))
+  expect(tip().hidden).toBe(true)
+})
