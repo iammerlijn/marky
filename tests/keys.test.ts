@@ -11,8 +11,7 @@ describe('macOS', () => {
     expect(shortcut(key('s', { metaKey: true }), true)).toBe('save')
     expect(shortcut(key('w', { metaKey: true }), true)).toBe('close-tab')
     expect(shortcut(key('t', { metaKey: true }), true)).toBe('new-tab')
-    expect(shortcut(key('n', { metaKey: true }), true)).toBe('new-tab')
-    expect(shortcut(key('n', { metaKey: true, shiftKey: true }), true)).toBe('new-window')
+    expect(shortcut(key('n', { metaKey: true }), true)).toBe('new-window')
   })
   test('Ctrl+O, Ctrl+S, Ctrl+T and Ctrl+N do nothing', () => {
     expect(shortcut(key('t', { ctrlKey: true }), true)).toBeNull()
@@ -29,8 +28,7 @@ describe('Linux', () => {
     expect(shortcut(key('s', { ctrlKey: true }), false)).toBe('save')
     expect(shortcut(key('w', { ctrlKey: true }), false)).toBe('close-tab')
     expect(shortcut(key('t', { ctrlKey: true }), false)).toBe('new-tab')
-    expect(shortcut(key('n', { ctrlKey: true }), false)).toBe('new-tab')
-    expect(shortcut(key('n', { ctrlKey: true, shiftKey: true }), false)).toBe('new-window')
+    expect(shortcut(key('n', { ctrlKey: true }), false)).toBe('new-window')
   })
   test('the Super key does nothing', () => {
     expect(shortcut(key('o', { metaKey: true }), false)).toBeNull()

@@ -48,8 +48,9 @@ const syncFullscreen = async () =>
   document.documentElement.classList.toggle('fullscreen', await appWindow.isFullscreen())
 void syncFullscreen()
 void appWindow.onResized(() => void syncFullscreen())
-// The first window takes the files from the command line. Each window starts on the welcome
-// screen: Marky does not open the files of the last run again.
+// The first window takes the files from the command line and starts on the welcome screen:
+// Marky does not open the files of the last run again. A window from Cmd/Ctrl+N starts with
+// a new file.
 const isFirstWindow = appWindow.label === 'main'
 const editorRoot = document.getElementById('editor')!
 // Check for unsaved edits a short time after a change. The editor calls it for each new document.
@@ -315,6 +316,10 @@ await onFileChanged((path, version) => void run(() => tabs.changed(path, version
 await fonts.catch(() => {})
 
 await onOpenFiles(openPaths, isFirstWindow)
+if (!isFirstWindow) {
+  tabs.newTab()
+  view.focus()
+}
 void invoke('bench_mark', { label: 'opened' })
 // The window starts hidden (tauri.conf.json, new_window in src-tauri/src/lib.rs), so that no
 // empty window shows. Show it now: the next paint has the document. Not in a frame callback:

@@ -120,7 +120,7 @@
         </button>
         <button type="button" onclick={onNew}>
           <span>New file</span>
-          <span class="shortcut">{keyLabel('N')}</span>
+          <span class="shortcut">{keyLabel('T')}</span>
         </button>
       </div>
 
