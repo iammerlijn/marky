@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // A click on the checkbox of a task checks or unchecks the task.
-import { Selection } from '@milkdown/kit/prose/state'
+import { Selection, TextSelection } from '@milkdown/kit/prose/state'
 import { afterEach, expect, test } from 'vitest'
 import { open, type OpenDoc } from './helpers'
 
@@ -150,4 +150,17 @@ test('Enter two times after a checked task ends the list', async () => {
   type('after')
   expect(items()).toHaveLength(1)
   expect(doc.save().text).toBe('- [x] done\n\nafter\n')
+})
+
+test('"[ ] " at the start of a table cell stays text', async () => {
+  doc = await open('| a |\n| - |\n| b |\n')
+  const view = doc.view
+  let cell = -1
+  view.state.doc.descendants((node, pos) => {
+    if (node.isTextblock && node.textContent === 'b') cell = pos + 1
+  })
+  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, cell)))
+  type('[ ] ')
+  expect(items()).toHaveLength(0)
+  expect(view.state.doc.textContent).toContain('[ ] b')
 })

@@ -2,6 +2,7 @@
 // click on it has the list item as target, left of its box. Such a click checks or unchecks the task.
 import { InputRule } from '@milkdown/kit/prose/inputrules'
 import { splitListItem } from '@milkdown/kit/prose/schema-list'
+import { findWrapping } from '@milkdown/kit/prose/transform'
 import { type Command, Plugin } from '@milkdown/kit/prose/state'
 import { $inputRule, $prose, $useKeymap } from '@milkdown/kit/utils'
 
@@ -16,9 +17,10 @@ const taskInput = $inputRule(
       const { bullet_list, list_item } = state.schema.nodes
       const tr = state.tr.delete(start, end)
       const range = tr.doc.resolve(start).blockRange()
-      if (!range) return null
-      const checked = match[1] !== ' '
-      return tr.wrap(range, [{ type: bullet_list }, { type: list_item, attrs: { checked } }])
+      // null where a list is not allowed, for example in a table cell.
+      const wrapping = range && findWrapping(range, bullet_list)
+      if (!wrapping) return null
+      return tr.wrap(range, [wrapping[0], { type: list_item, attrs: { checked: match[1] !== ' ' } }])
     }),
 )
 
