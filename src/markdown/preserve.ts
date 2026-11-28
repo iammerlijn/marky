@@ -145,7 +145,7 @@ export function save(md: Markdown, source: Source, doc: Node): { text: string; c
       ? blocks[origin[j]].text
       : node.type.name === 'table' && before?.node?.type === node.type
         ? serializeTable(md, doc, node, before, eol)
-        : serializeBlock(md, doc, node, eol)
+        : ((before?.node && toggledTasks(node, before)) ?? serializeBlock(md, doc, node, eol))
     if (text !== '') items.push({ text, place: place[j], edited })
   })
   flushHidden(blocks.length)
@@ -206,6 +206,39 @@ function serializeTable(md: Markdown, doc: Node, table: Node, before: Block, eol
   for (const [j, i] of pairs) lines[line(j)] = original[line(i)]
   if (sameColumns(table.child(0), old.child(0))) lines[1] = original[1]
   return lines.join(eol)
+}
+
+// An edited block at its original place that differs only in checked tasks: the original
+// text with only the checkbox of those tasks changed. Else null. The task markers are found
+// in text order, the same order as the task items in the node.
+const TASK_MARKER = /^([ \t]*(?:[-*+]|\d+[.)])[ \t]+\[)[ xX]\]/gm
+
+function toggledTasks(node: Node, before: Block): string | null {
+  const checks: (boolean | null)[] = []
+  if (!sameExceptChecks(node, before.node!, checks) || checks.every((c) => c === null)) return null
+  const markers = [...before.text.matchAll(TASK_MARKER)]
+  if (markers.length !== checks.length) return null
+  let text = before.text
+  // From the end, so that the offsets of the markers before stay valid.
+  for (let k = markers.length - 1; k >= 0; k--) {
+    if (checks[k] === null) continue
+    const at = markers[k].index + markers[k][1].length
+    text = text.slice(0, at) + (checks[k] ? 'x' : ' ') + text.slice(at + 1)
+  }
+  return text
+}
+
+// Equal, except the checked attribute of task items. checks gets, for each task item in
+// document order, its new checked value, or null when it did not change.
+function sameExceptChecks(a: Node, b: Node, checks: (boolean | null)[]): boolean {
+  if (a.isText || b.isText) return a.eq(b)
+  if (a.type !== b.type || a.childCount !== b.childCount) return false
+  if (a.attrs.checked != null && b.attrs.checked != null) {
+    checks.push(a.attrs.checked !== b.attrs.checked ? a.attrs.checked : null)
+    if (!a.type.create({ ...a.attrs, checked: b.attrs.checked }, null, a.marks).sameMarkup(b)) return false
+  } else if (!a.sameMarkup(b)) return false
+  for (let i = 0; i < a.childCount; i++) if (!sameExceptChecks(a.child(i), b.child(i), checks)) return false
+  return true
 }
 
 // Same number of columns and the same alignment: the delimiter row stays valid.

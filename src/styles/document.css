@@ -122,10 +122,24 @@ body {
   height: 12px;
   border: 1.5px solid var(--text-muted);
   border-radius: 3px;
+  /* A click checks or unchecks the task (plugins/tasks.ts). */
+  cursor: pointer;
 }
 .ProseMirror li[data-item-type='task'][data-checked='true']::before {
   background: var(--accent);
   border-color: var(--accent);
+}
+.ProseMirror li[data-item-type='task'][data-checked='true']::after {
+  content: '';
+  position: absolute;
+  left: -17px;
+  top: calc(0.4em + 2px);
+  width: 3px;
+  height: 7px;
+  border: solid #fff;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+  cursor: pointer;
 }
 .ProseMirror li[data-item-type='task'][data-checked='true'] > p {
   color: var(--text-muted);
