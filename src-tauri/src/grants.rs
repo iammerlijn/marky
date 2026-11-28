@@ -4,7 +4,7 @@
 //
 // The grants of a window are only for that window, and they go when the window closes.
 //
-// The session and the Recent list open files again without a dialog, so the backend keeps the
+// The Recent list opens files again without a dialog, so the backend keeps the
 // newest granted paths in a file. The rule for these kept paths: at start, Marky reads the file,
 // and any window can open a path from it; the open then grants the path to that window. A grant
 // during the run goes into the file only for the next start, so that one window cannot open the
@@ -13,7 +13,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-// More than the Recent list (8) and the tabs of a usual session.
+// More than the Recent list (8).
 const KEPT: usize = 100;
 
 pub struct Grants {
